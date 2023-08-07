@@ -20,28 +20,36 @@ body {
 }
 
 .cell {
+  width: 40px;
   height: 40px;
-  background-color: #3d3d3d;
+  /* background-color: #3d3d3d; */
 }
 
 
 .row:nth-child(even) .cell {
   height: 10px;
-  background-color: #cbcbcb;
 }
 
 .row .cell:nth-child(even) {
   width: 10px;
+}
+
+.square {
+  background-color: #3d3d3d;
+}
+
+.block, .block-mid, .block-vert {
   background-color: #cbcbcb;
 }
 
-.row:nth-child(even) .cell:nth-child(even) {
-  background-color: #cbcbcb;
+.block-left {
+  background-color: red !important;
 }
 
-.cell {
-  width: 40px;
+.block-right {
+  background-color: #00ff00 !important;
 }
+
 
 .player1 {
   background-color: #ff0000;
