@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Players from './Players';
 import socket from '../socket';
 
 const Game = ({ player, initialRoom }) => {
   const [room, setRoom] = useState(initialRoom);
-  const [prevMouseX, setPrevMouseX] = useState(0);
-  const [classState, setClassState] = useState('');
+  const [hoverBlock, setHoverBlock] = useState(null);
 
   const GRID_SIZE = 17;
 
@@ -162,6 +161,7 @@ const Game = ({ player, initialRoom }) => {
   }
 
   useEffect(() => {
+    console.log(room);
 
     const handleKeyPress = (event) => {
       if (room.turn.id === player.id) {
@@ -195,11 +195,8 @@ const Game = ({ player, initialRoom }) => {
 
   useEffect(() => {
     socket.on('roomUpdated', (updatedRooms) => {
-      console.log('nextTurn1')
-      console.log(updatedRooms);
       setRoom(updatedRooms);
     });
-
 
     return () => {
       socket.off('roomUpdated');
@@ -209,56 +206,119 @@ const Game = ({ player, initialRoom }) => {
   const gridData = Array.from({ length: GRID_SIZE }, () =>
     Array.from({ length: GRID_SIZE }, () => 'empty')
   );
+  
+  const eventRef = useRef({
+    clientX: 0,
+    clientY: 0  
+  })
 
-  const handleHover = (event) => {
-    const element = event.target;
+  const checkHover = (e) => {
+    console.log(hoverBlock)
+    if (hoverBlock) {
+      const element = hoverBlock.element;
+      const mouse = eventRef.current[hoverBlock.dir];
 
-    if (!element.classList.contains('hasBlock')) {
-      const rect = element.getBoundingClientRect();
-      
-      const col = element.dataset.col; 
-      const row = element.dataset.row;
+      if (mouse > hoverBlock.rectPos) {
+        element.classList.add('block-right');
+        element.classList.remove('block-left');
+        
+        const next = hoverBlock.next;
 
-      if (element.classList.contains('block')) {
-        const mouseX = event.clientX;
-
-        if (mouseX > rect.left + rect.width / 2) {
-          const next = document.querySelector(`div[data-row="${row}"][data-col="${+col + 2}"]`);
-          console.log(next);
-          element.classList.add('block-right');
-          element.classList.remove('block-left');
-
-          if (next) {
-            next.classList.add('block-right');
-          }
-        } else {
-          const next = document.querySelector(`div[data-row="${row}"][data-col="${col - 2}"]`);
-          console.log(next);
-          element.classList.add('block-left');
-          element.classList.remove('block-right');
-          if (next) {
-            next.classList.add('block-left');
-          }
+        if (next) {
+          next.classList.add('block-right');
+          hoverBlock.nextMid.classList.add('block-right');
         }
-      }
+      } else {
+        element.classList.add('block-left');
+        element.classList.remove('block-right');
 
-      if (element.classList.contains('block-vert')) {
-        const mouseY = event.clientY;
-        if (mouseY > rect.top + rect.height / 2) {
-          element.classList.add('block-right');
-          element.classList.remove('block-left');
-        } else {
-          element.classList.add('block-left');
-          element.classList.remove('block-right');
+        const prev = hoverBlock.prev;
+        const prevMid = hoverBlock.prevMid;
+
+        if (prev) {
+          prev.classList.add('block-left');
+          hoverBlock.prevMid.classList.add('block-left');
         }
       }
     }
+  }
+  useEffect(() => {
+    if (hoverBlock) {
+      checkHover(event); 
+    }
+  }, [hoverBlock]);
+
+  const handleHover = (e) => {
+    checkHover(e);
   };
 
-  const handleLeave = (event) => {
-    const element = event.target;
-    element.classList.remove('block-left');
-    element.classList.remove('block-right');
+
+  const handleEnter = (e) => {
+    const element = e.target;
+    eventRef.current.clientX = e.clientX;
+    eventRef.current.clientY = e.clientY;
+
+    setTimeout(() => {
+      if (element.matches(':hover')) {
+        const col = element.dataset.col;
+        const row = element.dataset.row;
+        const rect = element.getBoundingClientRect();
+
+        let rectPos, dir, next, nextMid, prev, prevMid;
+
+        if (element.classList.contains('block')) {
+          rectPos = rect.left + rect.width / 2;
+          dir = 'clientX';
+
+          // Check if exists and if it has class hasBlock.
+          next = document.querySelector(`div[data-row="${row}"][data-col="${+col + 2}"]`);
+          nextMid = document.querySelector(`div[data-row="${row}"][data-col="${+col + 1}"]`);
+
+          // Check if exists and if it has class hasBlock.
+          prev = document.querySelector(`div[data-row="${row}"][data-col="${+col - 2}"]`);
+          prevMid = document.querySelector(`div[data-row="${row}"][data-col="${+col - 1}"]`);
+        } else {
+          rectPos = rect.top + rect.height / 2;
+          dir = 'clientY';
+
+          // Check if exists and if it has class hasBlock.
+          next = document.querySelector(`div[data-row="${+row + 2}"][data-col="${col}"]`);
+          nextMid = document.querySelector(`div[data-row="${+row + 1}"][data-col="${col}"]`);
+
+          // Check if exists and if it has class hasBlock.
+          prev = document.querySelector(`div[data-row="${row - 2}"][data-col="${col}"]`);
+          prevMid = document.querySelector(`div[data-row="${row - 1}"][data-col="${col}"]`);
+        }
+
+        const data = { element, col, row, rectPos, dir, next, nextMid, prev, prevMid };
+
+        setHoverBlock(data);
+      }
+    }, 200);
+  };
+
+  const handleLeave = () => {
+    if (hoverBlock) {
+      const element = hoverBlock.element;
+
+      element.classList.remove('block-left');
+      element.classList.remove('block-right');
+
+      const next = hoverBlock.next;
+      const prev = hoverBlock.prev;
+
+      if (next) {
+        next.classList.remove('block-right');
+        hoverBlock.nextMid.classList.remove('block-right');
+      }
+
+      if (prev) {
+        prev.classList.remove('block-left');
+        hoverBlock.prevMid.classList.remove('block-left');
+      }
+
+      setHoverBlock(null);
+    }
   };
 
   return (
@@ -269,16 +329,51 @@ const Game = ({ player, initialRoom }) => {
         <div className="grid">
           {gridData.map((row, rowIndex) => (
             <div key={rowIndex} className={`row ${rowIndex % 2 !== 0 ? 'block-row' : 'square-row'}`} data-row={rowIndex}>
-              {row.map((cell, colIndex) => (
-                <div
-                  key={colIndex}
-                  className={`cell ${cell} ${rowIndex % 2 === 1 ? colIndex % 2 === 0 ? 'block' : 'block-mid' : colIndex % 2 !== 0 ? 'block-vert' : 'square'}`}
-                  data-row={rowIndex}
-                  data-col={colIndex}
-                  onMouseMove={handleHover}
-                  onMouseLeave={handleLeave}
-                ></div>
-              ))}
+              {row.map((cell, colIndex) => {
+                let classNames = `cell ${cell}`;
+                let mouseEv = false;
+                let hasBlock = false;
+
+                if (rowIndex % 2 === 1) {
+                  if (colIndex % 2 === 0) {
+                    classNames += ' block';
+                    mouseEv = true;
+                  } else {
+                    classNames += ' block-mid';
+                  }
+                } else {
+                  if (colIndex % 2 !== 0) {
+                    classNames += ' block-vert';
+                    mouseEv = true;
+                  } else {
+                    classNames += ' square';
+                  }
+                }
+
+                for (const roomBlock of room.blocks) {
+                  if (rowIndex === roomBlock.row && colIndex === roomBlock.col) {
+                    hasBlock = true;
+                    break; // Exit the loop if a match is found
+                  }
+                }
+          
+                if (hasBlock) {
+                  classNames += ' hasBlock'; // Add the 'hasBlock' class if there's a match
+                }
+
+                return (
+                  <div
+                    key={colIndex}
+                    className={classNames}
+                    data-row={rowIndex}
+                    data-col={colIndex}
+                    onMouseEnter={mouseEv ? handleEnter : undefined}
+                    onMouseMove={mouseEv ? handleHover : undefined}
+                    onMouseLeave={mouseEv ? handleLeave : undefined}
+                  ></div>
+                );
+              })}
+
             </div>
           ))}
         </div>

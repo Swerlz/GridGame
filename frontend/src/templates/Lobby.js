@@ -50,7 +50,7 @@ const Lobby = ({ player, inGame }) => {
             turn: {name: player.name, id: player.id},
             admin: {name: player.name, id: player.id},
             players: [{ name: player.name, id: player.id, row: 0, col: 0, blocks: 8}],
-            blocks : {}
+            blocks : [{row: 1, col: 0}]
         };
 
         setIsCreatingRoom(false);

@@ -50,6 +50,9 @@ body {
   background-color: #00ff00 !important;
 }
 
+.hasBlock {
+  background-color: pink !important;
+}
 
 .player1 {
   background-color: #ff0000;
