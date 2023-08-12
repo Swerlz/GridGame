@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Players from './Players';
 import socket from '../socket';
 
-const Game = ({ player, initialRoom }) => {
+const Game = ({ player, initialRoom, mainRoomUpdate }) => {
   const [room, setRoom] = useState(initialRoom);
   const [hoverData, sethoverData] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -40,7 +40,7 @@ const Game = ({ player, initialRoom }) => {
           }
 
           if ('Winner' === updatedPlayers) {
-            socket.emit('playerWon', room, foundPlayer);
+            socket.emit('playerWon', room.id, foundPlayer);
           } else if (updatedPlayers) {
             socket.emit('playerMove', room.id, updatedPlayers, player.id);
           }
@@ -57,12 +57,22 @@ const Game = ({ player, initialRoom }) => {
 
 
   useEffect(() => {
-    socket.on('roomUpdated', (updatedRooms) => {
-      setRoom(updatedRooms);
+    socket.on('roomUpdated', (updatedRoom) => {
+      console.log(updatedRoom.status);
+      if (updatedRoom.status === 'inLobby') {
+        mainRoomUpdate(updatedRoom);
+      } else {
+        setRoom(updatedRoom);
+      }
+    });
+    
+    socket.on('startGame', (gameRoom) => {
+      setRoom(gameRoom);
     });
 
     return () => {
       socket.off('roomUpdated');
+      socket.off('startGame');
     };
   }, []);
 
@@ -297,7 +307,6 @@ const Game = ({ player, initialRoom }) => {
     }
   };
 
-
   const handleLeave = () => {
     if (hoverData) {
 
@@ -375,10 +384,10 @@ const Game = ({ player, initialRoom }) => {
             </div>
           ))}
         </div>
-        {room.winner !== null ? ( 
+        {room.winner ? ( 
         <div>
-          <button>Lobby</button>
-          <button>Play Again</button>
+          <button onClick={() => {socket.emit('roomStatus', room.id, 'inLobby')}}>Lobby</button>
+          <button onClick={() => {socket.emit('startGame', room)}}>Play Again</button>
         </div>
         ) : null }
       </div>

@@ -22,7 +22,7 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
 
   return (
     <>
-      <h2>{room.name}</h2>
+      <h2>Room Name: {room.name}</h2>
 
       {theplayer.id === room.admin.id &&
       <div>

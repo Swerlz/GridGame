@@ -3,11 +3,11 @@ import Room from './Room';
 import socket from '../socket';
 import { v4 as uuidv4 } from 'uuid';
 
-const Lobby = ({ player, inGame }) => {
+const Lobby = ({ player, mainRoomUpdate, room }) => {
     const [isCreatingRoom, setIsCreatingRoom] = useState(false);
     const [roomName, setRoomName] = useState('');
     const [rooms, setRooms] = useState([]);
-    const [currentRoom, setCurrentRoom] = useState(null);
+    const [currentRoom, setCurrentRoom] = useState(room);
 
     useEffect(() => {
         socket.on('lobbyUpdate', (updatedRooms) => {
@@ -30,7 +30,7 @@ const Lobby = ({ player, inGame }) => {
         });
 
         socket.on('startGame', (gameRoom) => {
-            inGame(gameRoom);
+            mainRoomUpdate(gameRoom);
         });
 
         return () => {
@@ -52,6 +52,7 @@ const Lobby = ({ player, inGame }) => {
             players:    [{ name: player.name, id: player.id, row: 0, col: 0}],
             blocks:     [],
             winner:     null,
+            status:     'inLobby',
             settings: {
                 maxBlocks: 8,
                 breakWalls: false,

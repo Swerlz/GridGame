@@ -11,7 +11,8 @@ const App = () => {
     player.length !== 0 && setPlayer(player);
   };
 
-  const inGame = (newRoom) => {
+  const mainRoomUpdate = (newRoom) => {
+    console.log('updating main room')
     setRoom(newRoom);
   }
 
@@ -24,18 +25,18 @@ const App = () => {
         </>
       ) : (
 
-        room === null ?
+        !room || room.status === 'inLobby' ?
         
         <>
           <h1>Hey, {player.name}</h1>
-          <Lobby player={player} inGame={inGame}/>
+          <Lobby player={player} mainRoomUpdate={mainRoomUpdate} room={room}/>
         </>
 
         : 
 
         <>
           <h1>Playing as: {player.name}</h1>
-          <Game player={player} initialRoom={room}/>
+          <Game player={player} initialRoom={room} mainRoomUpdate={mainRoomUpdate} />
         </>
 
       )}

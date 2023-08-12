@@ -111,6 +111,10 @@ function updateNextPlayer(roomFound, currentPlayerID) {
   roomFound.turn = roomFound.players[nextPlayerIndex];
 }
 
+function getRandomPlayer(players) {
+  return players[Math.floor(Math.random() * players.length)];
+}
+
 io.on('connection', (socket) => {
 
   socket.on('newPlayer', (player) => {
@@ -161,6 +165,17 @@ io.on('connection', (socket) => {
       emitRoomUpdate(roomID, roomFound);
     }
   });
+  
+  socket.on('playerWon', (roomID, player) => {
+    const roomFound = findRoom(roomID);
+
+    if (roomFound) {
+      roomFound.winner = player;
+
+      updateRooms(roomFound);
+      emitRoomUpdate(roomFound.id, roomFound)
+    }
+  });
 
   socket.on('addBlocks', (roomID, blocks, currentPlayerID) => {
     const roomFound = findRoom(roomID);
@@ -178,6 +193,17 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('roomStatus', (roomID, status) => {
+    const roomFound = findRoom(roomID);
+
+    if (roomFound) {
+      roomFound.status = status;
+      
+      updateRooms(roomFound);
+      emitRoomUpdate(roomFound.id, roomFound)
+    }
+  });
+
   socket.on('leaveRoom', (room, playerID) => {
     if (isRoomAdmin(room.admin.id, playerID)) {
       removeAllFromRoom(room.id);
@@ -187,20 +213,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startGame', (room) => {
-    const updatedRoom = updateStartingPosition(room);
+    const randomPlayer = getRandomPlayer(room.players);
 
     room.players.map((val, key) => { val.blocks = room.settings.maxBlocks; });
-
-    updateRooms(updatedRoom);
-
-    io.in(room.id).emit('startGame', room);
-  });
-
-  socket.on('playerWon', (room, player) => {
-    room.winner = player;
+    room.winner = null;
+    room.turn.name = randomPlayer.name;
+    room.turn.id = randomPlayer.id;
+    room.blocks = [];
+    room.status = 'inGame';
+    room = updateStartingPosition(room);
 
     updateRooms(room);
-    emitRoomUpdate(room)
+
+    io.in(room.id).emit('startGame', room);
   });
 
   socket.on('disconnect', () => {
