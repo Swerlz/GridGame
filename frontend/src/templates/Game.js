@@ -1,186 +1,49 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import Players from './Players';
 import socket from '../socket';
 
 const Game = ({ player, initialRoom }) => {
   const [room, setRoom] = useState(initialRoom);
-  const [hoverBlock, setHoverBlock] = useState(null);
+  const [hoverData, sethoverData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const GRID_SIZE = 17;
-
-  function checkGrid(row) {
-    console.log(row);
-    return row < 0 || row > 16;
-  }
-
-  function checkBlock(row, col) {
-    let blockFound = false;
-
-    if (room.blocks.length > 0) {
-      room.blocks.forEach((block) => {
-        if (block.row === row && block.col === col) {
-          blockFound = true;
-        }
-      });
-    }
-
-    return blockFound;
-
-  }
-
-  function checkPlayer(row, col) {
-    let playerFound = false;
-
-    room.players.forEach((player) => {
-      if (player.row === row && player.col === col) {
-        playerFound = true;
-      }
-    });
-
-    return playerFound;
-  }
-
-  function checkMove(direction) {
-    const foundPlayer = room.players.find((val) => val.id === player.id)
-
-    if (foundPlayer) {
-      let row = foundPlayer.row;
-      let col = foundPlayer.col;
-      let checkB, checkP, checkG;
-
-      switch (direction) {
-        case 'up':
-          checkB = checkBlock(row - 1, col);
-          checkP = checkPlayer(row - 2, col);
-          checkG = checkGrid(row - 2);
-          console.log(checkB, checkP, checkG);
-
-          if (checkB || checkP || checkG) {
-            console.log('You cannot move up');
-          } else {
-            const playerIndex = room.players.findIndex(p => p.id === player.id);
-
-            getNextPlayer(playerIndex);
-
-            const updatedPlayers = room.players.map((p) => {
-              if (p.id === player.id) {
-                p.row -= 2;
-              }
-              return p;
-            });
-
-            const updatedRoom = { ...room, players: updatedPlayers };
-            socket.emit('playerMove', updatedRoom);
-          }
-          break;
-        case 'down':
-          checkB = checkBlock(row + 1, col);
-          checkP = checkPlayer(row + 2, col);
-          checkG = checkGrid(row + 2);
-          console.log(checkB, checkP, checkG);
-
-          if (checkB || checkP || checkG) {
-            console.log('You cannot move down');
-          } else {
-            const playerIndex = room.players.findIndex(p => p.id === player.id);
-
-            getNextPlayer(playerIndex);
-
-            const updatedPlayers = room.players.map((p) => {
-              if (p.id === player.id) {
-                p.row += 2;
-              }
-              return p;
-            });
-
-            const updatedRoom = { ...room, players: updatedPlayers };
-            socket.emit('playerMove', updatedRoom);
-          }
-          break;
-        case 'left':
-          checkB = checkBlock(row, col - 1);
-          checkP = checkPlayer(row, col - 2);
-          checkG = checkGrid(col - 2);
-
-          if (checkB || checkP || checkG) {
-            console.log('You cannot move left');
-          } else {
-            const playerIndex = room.players.findIndex(p => p.id === player.id);
-
-            getNextPlayer(playerIndex);
-
-            const updatedPlayers = room.players.map((p) => {
-              if (p.id === player.id) {
-                p.col -= 2;
-              }
-              return p;
-            });
-
-            const updatedRoom = { ...room, players: updatedPlayers };
-            socket.emit('playerMove', updatedRoom);
-          }
-          break;
-        case 'right':
-          checkB = checkBlock(row, col + 1);
-          checkP = checkPlayer(row, col + 2);
-          checkG = checkGrid(col + 2);
-
-          if (checkB || checkP || checkG) {
-            console.log('You cannot move right');
-          } else {
-            const playerIndex = room.players.findIndex(p => p.id === player.id);
-
-            getNextPlayer(playerIndex);
-
-            const updatedPlayers = room.players.map((p) => {
-              if (p.id === player.id) {
-                p.col += 2;
-              }
-              return p;
-            });
-
-            const updatedRoom = { ...room, players: updatedPlayers };
-            socket.emit('playerMove', updatedRoom);
-          }
-          break;
-        default:
-          break;
-      }
-    }
-  }
-
-  function getNextPlayer(playerIndex) {
-    // Get the next player index, loop back to 0 if at end
-    let nextPlayerIndex = playerIndex + 1;
-    if (nextPlayerIndex >= room.players.length) {
-      nextPlayerIndex = 0;
-    }
-
-    // Update room.turn 
-    room.turn = room.players[nextPlayerIndex];
-  }
+  const gridData = Array.from({ length: room.settings.gridSize }, () =>
+    Array.from({ length: room.settings.gridSize }, () => 'empty')
+  );
 
   useEffect(() => {
-    console.log(room);
-
     const handleKeyPress = (event) => {
-      if (room.turn.id === player.id) {
-        console.log('this player turn');
-        switch (event.key) {
-          case 'ArrowUp':
-            checkMove('up')
-            break;
-          case 'ArrowDown':
-            checkMove('down')
-            break;
-          case 'ArrowLeft':
-            checkMove('left')
-            break;
-          case 'ArrowRight':
-            checkMove('right')
-            break;
-          default:
-            break;
+      if (room.turn.id === player.id && !room.winner) {
+        const foundPlayer = getPlayer(player.id);
+
+        if (foundPlayer) {
+          const { row, col } = foundPlayer;
+          let updatedPlayers;
+
+          setErrorMsg('');
+
+          switch (event.key) {
+            case 'ArrowUp':
+              updatedPlayers = movePlayer(row, col, -2, 0);
+              break;
+            case 'ArrowDown':
+              updatedPlayers = movePlayer(row, col, +2, 0);
+              break;
+            case 'ArrowLeft':
+              updatedPlayers = movePlayer(row, col, 0, -2);
+              break;
+            case 'ArrowRight':
+              updatedPlayers = movePlayer(row, col, 0, +2);
+              break;
+            default:
+              break;
+          }
+
+          if ('Winner' === updatedPlayers) {
+            socket.emit('playerWon', room, foundPlayer);
+          } else if (updatedPlayers) {
+            socket.emit('playerMove', room.id, updatedPlayers, player.id);
+          }
         }
       }
     };
@@ -203,127 +66,278 @@ const Game = ({ player, initialRoom }) => {
     };
   }, []);
 
-  const gridData = Array.from({ length: GRID_SIZE }, () =>
-    Array.from({ length: GRID_SIZE }, () => 'empty')
-  );
-  
-  const eventRef = useRef({
-    clientX: 0,
-    clientY: 0  
-  })
+  function collisionGrid(row, col) {
+    return (row < 0 || row > room.settings.gridSize) || (col < 0 || col > room.settings.gridSize);
+  }
 
-  const checkHover = (e) => {
-    console.log(hoverBlock)
-    if (hoverBlock) {
-      const element = hoverBlock.element;
-      const mouse = eventRef.current[hoverBlock.dir];
+  function collisionWinner(row, col) {
+    const foundPlayer = getPlayer(player.id);
 
-      if (mouse > hoverBlock.rectPos) {
-        element.classList.add('block-right');
-        element.classList.remove('block-left');
-        
-        const next = hoverBlock.next;
+    const [winLane, winSideStr] = foundPlayer.winLane.split('-');
+    const winSide = parseInt(winSideStr);
 
-        if (next) {
-          next.classList.add('block-right');
-          hoverBlock.nextMid.classList.add('block-right');
+    if (winLane === 'row') {
+      return winSide === 0 ? row < winSide : row > winSide;
+    } else {
+      return winSide === 0 ? col < winSide : col > winSide;
+    }
+  }
+
+  function collisionWall(row, col) {
+    let blockFound = false;
+
+    if (room.blocks.length > 0) {
+      room.blocks.forEach((block) => {
+        if (block.row === row && block.col === col) {
+          blockFound = true;
         }
+      });
+    }
+
+    return blockFound;
+  }
+
+  function collisionPlayer(row, col) {
+    let playerFound = false;
+
+    room.players.forEach((player) => {
+      if (player.row === row && player.col === col) {
+        playerFound = true;
+      }
+    });
+
+    return playerFound;
+  }
+
+  function movePlayer(row, col, rowOffset, colOffset) {
+    let blockX, blockY;
+
+    if (rowOffset === 0) {
+      blockY = row;
+      if (colOffset > 0) {
+        blockX = col + (colOffset - 1);
       } else {
-        element.classList.add('block-left');
-        element.classList.remove('block-right');
+        blockX = col + (colOffset + 1);
+      }
+    } else {
+      blockX = col;
+      if (rowOffset > 0) {
+        blockY = row + (rowOffset - 1);
+      } else {
+        blockY = row + (rowOffset + 1);
+      }
+    }
 
-        const prev = hoverBlock.prev;
-        const prevMid = hoverBlock.prevMid;
+    const checkW = collisionWinner(+row + rowOffset, +col + colOffset);
+    if (checkW) {
+      return 'Winner';
+    } else {
+      const checkB = collisionWall(blockY, blockX);
+      const checkP = collisionPlayer(+row + rowOffset, +col + colOffset);
+      const checkG = collisionGrid(+row + rowOffset, +col + colOffset);
 
-        if (prev) {
-          prev.classList.add('block-left');
-          hoverBlock.prevMid.classList.add('block-left');
-        }
+      if (checkB || checkP || checkG) {
+        console.log('err');
+        setErrorMsg(`You cannot move there, idiot.`);
+        return false;
+      } else {
+        return room.players.map(p => {
+          if (p.id === player.id) {
+            p.row += rowOffset;
+            p.col += colOffset;
+          }
+          return p;
+        });
       }
     }
   }
-  useEffect(() => {
-    if (hoverBlock) {
-      checkHover(event); 
-    }
-  }, [hoverBlock]);
 
-  const handleHover = (e) => {
-    checkHover(e);
+  const getPlayer = () => {
+    return room.players.find(p => p.id === player.id);
+  }
+
+  const isPlayersBoxed = () => {
+    const players = room.players;
+
+    for (const player of players) {
+      const { row, col } = player;
+
+      const leftDiv = document.querySelector(`div[data-row="${row}"][data-col="${col - 1}"]`);
+      const rightDiv = document.querySelector(`div[data-row="${row}"][data-col="${col + 1}"]`);
+      const topDiv = document.querySelector(`div[data-row="${row - 1}"][data-col="${col}"]`);
+      const bottomDiv = document.querySelector(`div[data-row="${row + 1}"][data-col="${col}"]`);
+
+      const isLeftBlocked = leftDiv && leftDiv.classList.contains('hasBlock');
+      const isRightBlocked = rightDiv && rightDiv.classList.contains('hasBlock');
+      const isTopBlocked = topDiv && topDiv.classList.contains('hasBlock');
+      const isBottomBlocked = bottomDiv && bottomDiv.classList.contains('hasBlock');
+
+      if (isLeftBlocked && isRightBlocked && isTopBlocked && isBottomBlocked) {
+        return true
+      }
+    }
+
+    return false
   };
 
+  const isPathBlocked = (row, col) => {
+    const elements = hoverData.axis === 'clientX' ? document.querySelectorAll(`div[data-row="${row}"] .block`) : document.querySelectorAll(`.block-vert[data-col="${col}"]`);
+    const cells = elements.length;
+    let isBlocked = 0;
+
+    for (const element of elements) {
+      if (element.classList.contains('hasBlock')) {
+        isBlocked++
+      }
+    }
+
+    return (cells - isBlocked) > 1 ? false : true;
+  }
+
+  const placeBlock = () => {
+    if (hoverData && !room.winner) {
+      const first = hoverData.divs[0];
+      const firstRow = first.dataset.row;
+      const firstCol = first.dataset.col;
+
+      const playerBlocked = isPlayersBoxed();
+      const pathBlocked = isPathBlocked(firstRow, firstCol);
+
+      if (!playerBlocked) {
+        if (!pathBlocked) {
+          let allBlocks = [...room.blocks];
+
+          hoverData.divs.map((div, key) => {
+            if (div && !div.classList.contains('hasBlock')) {
+              allBlocks.push({ row: parseInt(div.dataset.row), col: parseInt(div.dataset.col) });
+            }
+          });
+
+          socket.emit('addBlocks', room.id, allBlocks, player.id);
+        } else {
+          setErrorMsg('You cannot bloth the path! Idiot.');
+        }
+      } else {
+        setErrorMsg('You cannot block a player! Idiot.');
+      }
+    }
+  }
 
   const handleEnter = (e) => {
-    const element = e.target;
-    eventRef.current.clientX = e.clientX;
-    eventRef.current.clientY = e.clientY;
+    const currentHover = e.target;
+    const currentPlayer = getPlayer();
 
-    setTimeout(() => {
-      if (element.matches(':hover')) {
-        const col = element.dataset.col;
-        const row = element.dataset.row;
-        const rect = element.getBoundingClientRect();
+    if (currentPlayer && currentPlayer.blocks > 0 && room.turn.id === player.id) {
+      setTimeout(() => {
+        if (currentHover.matches(':hover')) {
+          const isHorizontal = currentHover.classList.contains('block');
+          const axis = isHorizontal ? 'clientX' : 'clientY';
+          const rect = currentHover.getBoundingClientRect();
+          const rectPos = isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+          const col = currentHover.dataset.col;
+          const row = currentHover.dataset.row;
+          const direction = e[axis] > rectPos ? 'right' : 'left';
 
-        let rectPos, dir, next, nextMid, prev, prevMid;
+          const getDiv = (row, col) => document.querySelector(`div[data-row="${row}"][data-col="${col}"]`);
 
-        if (element.classList.contains('block')) {
-          rectPos = rect.left + rect.width / 2;
-          dir = 'clientX';
+          let middleR, middleL, middleXL, spaceR, spaceL, spaceXL;
 
-          // Check if exists and if it has class hasBlock.
-          next = document.querySelector(`div[data-row="${row}"][data-col="${+col + 2}"]`);
-          nextMid = document.querySelector(`div[data-row="${row}"][data-col="${+col + 1}"]`);
+          if (isHorizontal) {
+            middleR = getDiv(row, +col + 1);
+            middleL = getDiv(row, col - 1);
+            middleXL = getDiv(row, +col + 3);
+            spaceR = getDiv(row, +col + 2);
+            spaceL = getDiv(row, col - 2);
+            spaceXL = getDiv(row, col - 4);
 
-          // Check if exists and if it has class hasBlock.
-          prev = document.querySelector(`div[data-row="${row}"][data-col="${+col - 2}"]`);
-          prevMid = document.querySelector(`div[data-row="${row}"][data-col="${+col - 1}"]`);
-        } else {
-          rectPos = rect.top + rect.height / 2;
-          dir = 'clientY';
+            if ('right' === direction) {
+              middleXL = getDiv(row, +col + 3);
+              spaceXL = getDiv(row, +col + 4);
+            } else {
+              middleXL = getDiv(row, col - 3);
+              spaceXL = getDiv(row, col - 4);
+            }
+          } else {
+            middleR = getDiv(+row + 1, col);
+            middleL = getDiv(row - 1, col);
+            spaceR = getDiv(+row + 2, col);
+            spaceL = getDiv(row - 2, col);
 
-          // Check if exists and if it has class hasBlock.
-          next = document.querySelector(`div[data-row="${+row + 2}"][data-col="${col}"]`);
-          nextMid = document.querySelector(`div[data-row="${+row + 1}"][data-col="${col}"]`);
+            if ('right' === direction) {
+              middleXL = getDiv(+row + 3, col);
+              spaceXL = getDiv(+row + 4, col);
+            } else {
+              middleXL = getDiv(row - 3, col);
+              spaceXL = getDiv(row - 4, col);
+            }
+          }
 
-          // Check if exists and if it has class hasBlock.
-          prev = document.querySelector(`div[data-row="${row - 2}"][data-col="${col}"]`);
-          prevMid = document.querySelector(`div[data-row="${row - 1}"][data-col="${col}"]`);
+          let divs = [currentHover];
+
+          currentHover.classList.add('blockHover');
+
+          if ('right' === direction) {
+            if (spaceR && middleR) {
+              divs.push(spaceR);
+              divs.push(middleR);
+            }
+
+            if (spaceL && spaceL.classList.contains('hasBlock') && !middleL.classList.contains('hasBlock')) {
+              divs.push(middleL);
+            }
+
+            if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
+              divs.push(middleXL);
+            }
+          } else {
+            if (spaceL && middleL) {
+              divs.push(spaceL);
+              divs.push(middleL);
+            }
+
+            if (spaceR && spaceR.classList.contains('hasBlock') && !middleR.classList.contains('hasBlock')) {
+              divs.push(middleR);
+            }
+
+            if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
+              divs.push(middleXL);
+            }
+          }
+
+          divs.map(v => { v.classList.add('blockHover') })
+
+          const data = { divs, direction, axis };
+
+          sethoverData(data);
         }
-
-        const data = { element, col, row, rectPos, dir, next, nextMid, prev, prevMid };
-
-        setHoverBlock(data);
-      }
-    }, 200);
+      }, 100);
+    }
   };
 
   const handleLeave = () => {
-    if (hoverBlock) {
-      const element = hoverBlock.element;
+    if (hoverData) {
 
-      element.classList.remove('block-left');
-      element.classList.remove('block-right');
+      hoverData.divs.map((div) => {
+        if (div) {
+          div.classList.remove('blockHover');
+        }
+      });
 
-      const next = hoverBlock.next;
-      const prev = hoverBlock.prev;
-
-      if (next) {
-        next.classList.remove('block-right');
-        hoverBlock.nextMid.classList.remove('block-right');
-      }
-
-      if (prev) {
-        prev.classList.remove('block-left');
-        hoverBlock.prevMid.classList.remove('block-left');
-      }
-
-      setHoverBlock(null);
+      sethoverData(null);
     }
   };
 
   return (
     <div>
-      <div>Player's Turn: {room.turn.name}</div>
+      <div>Problems: {errorMsg}</div>
+      <div>
+        <h4>Players</h4>
+        <ul>
+          {room.players.map((p) => {
+            return <li key={p.id}>{p.name} {p.name === room.turn.name ? '- your turn, idiot' : ''}</li>
+          })}
+        </ul>
+      </div>
       <div className="game-container">
         <Players room={room} />
         <div className="grid">
@@ -353,12 +367,12 @@ const Game = ({ player, initialRoom }) => {
                 for (const roomBlock of room.blocks) {
                   if (rowIndex === roomBlock.row && colIndex === roomBlock.col) {
                     hasBlock = true;
-                    break; // Exit the loop if a match is found
+                    break;
                   }
                 }
-          
+
                 if (hasBlock) {
-                  classNames += ' hasBlock'; // Add the 'hasBlock' class if there's a match
+                  classNames += ' hasBlock';
                 }
 
                 return (
@@ -367,9 +381,9 @@ const Game = ({ player, initialRoom }) => {
                     className={classNames}
                     data-row={rowIndex}
                     data-col={colIndex}
-                    onMouseEnter={mouseEv ? handleEnter : undefined}
-                    onMouseMove={mouseEv ? handleHover : undefined}
-                    onMouseLeave={mouseEv ? handleLeave : undefined}
+                    onMouseEnter={mouseEv && !hasBlock ? handleEnter : undefined}
+                    onMouseLeave={mouseEv && !hasBlock ? handleLeave : undefined}
+                    onClick={mouseEv && !hasBlock ? placeBlock : undefined}
                   ></div>
                 );
               })}
@@ -377,6 +391,12 @@ const Game = ({ player, initialRoom }) => {
             </div>
           ))}
         </div>
+        {room.winner !== null ? ( 
+        <div>
+          <button>Lobby</button>
+          <button>Play Again</button>
+        </div>
+        ) : null }
       </div>
     </div>
   );

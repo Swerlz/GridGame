@@ -8,10 +8,7 @@ const App = () => {
   const [room, setRoom] = useState(null);
 
   const createPlayer = (player) => {
-    if (player.length !== 0) {
-      console.log(player);
-      setPlayer(player);
-    }
+    player.length !== 0 && setPlayer(player);
   };
 
   const inGame = (newRoom) => {
@@ -37,7 +34,7 @@ const App = () => {
         : 
 
         <>
-          <h1>In Game: {player.name}</h1>
+          <h1>Playing as: {player.name}</h1>
           <Game player={player} initialRoom={room}/>
         </>
 

@@ -29,8 +29,8 @@ const Lobby = ({ player, inGame }) => {
             setCurrentRoom(targetRoom);
         });
 
-        socket.on('startGame', () => {
-            inGame(currentRoom);
+        socket.on('startGame', (gameRoom) => {
+            inGame(gameRoom);
         });
 
         return () => {
@@ -45,12 +45,19 @@ const Lobby = ({ player, inGame }) => {
         if (roomName === '') return;
 
         const newRoom = {
-            id: uuidv4(),
-            name: roomName,
-            turn: {name: player.name, id: player.id},
-            admin: {name: player.name, id: player.id},
-            players: [{ name: player.name, id: player.id, row: 0, col: 0, blocks: 8}],
-            blocks : [{row: 1, col: 0}]
+            id:         uuidv4(),
+            name:       roomName,
+            turn:       {name: player.name, id: player.id},
+            admin:      {name: player.name, id: player.id},
+            players:    [{ name: player.name, id: player.id, row: 0, col: 0}],
+            blocks:     [],
+            winner:     null,
+            settings: {
+                maxBlocks: 8,
+                breakWalls: false,
+                jumpWalls: true,
+                gridSize: 17
+            }
         };
 
         setIsCreatingRoom(false);
@@ -70,8 +77,10 @@ const Lobby = ({ player, inGame }) => {
         socket.emit('leaveRoom', currentRoom, player.id);
     };
 
-    const startGame = () => {
-        socket.emit('startGame', currentRoom);
+    const startGame = (newSettings) => {
+        const newRoom = {...currentRoom, settings: {...currentRoom.settings, ...newSettings}};
+
+        socket.emit('startGame', newRoom);
     };
 
     return (

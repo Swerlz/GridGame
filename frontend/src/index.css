@@ -23,6 +23,7 @@ body {
   width: 40px;
   height: 40px;
   /* background-color: #3d3d3d; */
+  transition: 0.1s ease-in;
 }
 
 
@@ -48,6 +49,10 @@ body {
 
 .block-right {
   background-color: #00ff00 !important;
+}
+
+.blockHover {
+  background-color: orange !important;
 }
 
 .hasBlock {
@@ -78,4 +83,8 @@ body {
 
 .game-container {
   position: relative;
+}
+
+.activeSetting {
+  color: cyan;
 }

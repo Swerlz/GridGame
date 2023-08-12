@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const http = require('http').createServer(express);
-const { handlePlayerMove } = require('./socketHandlers');
 const io = require('socket.io')(http, {
   cors: {
     origin: 'http://localhost:3000', // Replace with your frontend's URL
@@ -9,19 +8,7 @@ const io = require('socket.io')(http, {
   },
 });
 
-const GRID_SIZE = 9;
 let rooms = [];
-
-// Initialize the grid data
-let gridData = Array.from({ length: GRID_SIZE }, () =>
-  Array.from({ length: GRID_SIZE }, () => 'empty')
-);
-
-const getGridData = () => gridData;
-
-const updateGridData = (newGridData) => {
-  gridData = newGridData;
-};
 
 express().use(
   cors({
@@ -37,7 +24,7 @@ function lobbyUpdate() {
   io.in('lobby').emit('lobbyUpdate', rooms);
 }
 
-function updateRoom(id, updatedRoom) {
+function emitRoomUpdate(id, updatedRoom) {
   io.in(id).emit('roomUpdated', updatedRoom);
 }
 
@@ -67,12 +54,10 @@ async function removeAllFromRoom(roomID) {
 }
 
 function removePlayerFromRoom(room, playerSocket) {
-  const removedPlayer = {
+  const updatedRoom = {
     ...room,
     players: room.players.filter((player) => player.id !== playerSocket.id)
   }
-
-  const updatedRoom = updateStartingPosition(removedPlayer);
 
   updateRooms(updatedRoom)
 
@@ -85,23 +70,28 @@ function removePlayerFromRoom(room, playerSocket) {
 
 function updateStartingPosition(room) {
   room.players.forEach((player, index) => {
-    let row;
-    let col;
+    const gridSize = room.settings.gridSize;
+    let row, col, winLane;
 
     if (index === 0) {
-      row = 16;
-      col = 8;
+      row = gridSize - 1;
+      col = (gridSize - 1) / 2;
+      winLane = 'row-0';
     } else if (index === 1) {
       row = 0;
-      col = 8;
+      col = (gridSize - 1) / 2;
+      winLane = 'row-' + gridSize;
     } else if (index === 2) {
-      row = 8;
+      row = (gridSize - 1) / 2;
       col = 0;
+      winLane = 'col-0';
     } else {
-      row = 8;
-      col = 16;
+      row = (gridSize - 1) / 2;
+      col = gridSize - 1;
+      winLane = 'col-' + gridSize;
     }
-    
+
+    player.winLane = winLane;
     player.row = row;
     player.col = col;
   });
@@ -109,8 +99,20 @@ function updateStartingPosition(room) {
   return room;
 }
 
+function updateNextPlayer(roomFound, currentPlayerID) {
+  const playerIndex = roomFound.players.findIndex(p => p.id === currentPlayerID);
+
+  let nextPlayerIndex = playerIndex + 1;
+
+  if (nextPlayerIndex >= roomFound.players.length) {
+    nextPlayerIndex = 0;
+  }
+
+  roomFound.turn = roomFound.players[nextPlayerIndex];
+}
+
 io.on('connection', (socket) => {
-  
+
   socket.on('newPlayer', (player) => {
     player.inGame = false;
     player.id = socket.id;
@@ -137,32 +139,69 @@ io.on('connection', (socket) => {
     const targetRoom = findRoom(id);
 
     if (targetRoom) {
-      targetRoom.players.push({ name: player.name, id: player.id, blocks: 8 });
+      targetRoom.players.push({ name: player.name, id: player.id });
 
-      const updatedRoom = updateStartingPosition(targetRoom);
+      updateRooms(targetRoom);
 
       socket.leave('lobby');
       socket.join(id);
 
-      updateRoom(id, updatedRoom);
+      emitRoomUpdate(id, targetRoom);
     }
   });
 
-  socket.on('playerMove', (updatedRoom) => {
-    updateRoom(updatedRoom.id, updatedRoom);
+  socket.on('playerMove', (roomID, updatedPlayers, currentPlayerID) => {
+    const roomFound = findRoom(roomID);
+
+    if (roomFound) {
+      roomFound.players = updatedPlayers;
+
+      updateNextPlayer(roomFound, currentPlayerID);
+
+      emitRoomUpdate(roomID, roomFound);
+    }
+  });
+
+  socket.on('addBlocks', (roomID, blocks, currentPlayerID) => {
+    const roomFound = findRoom(roomID);
+
+    if (roomFound) {
+      roomFound.blocks = blocks;
+
+      roomFound.players = roomFound.players.map(v => {
+        return v.id === currentPlayerID ? { ...v, blocks: v.blocks - 1 } : v;
+      });
+
+      updateNextPlayer(roomFound, currentPlayerID);
+
+      emitRoomUpdate(roomID, roomFound);
+    }
   });
 
   socket.on('leaveRoom', (room, playerID) => {
-      if (isRoomAdmin(room.admin.id, playerID)) {
-        removeAllFromRoom(room.id);
-      } else {
-        removePlayerFromRoom(room, socket);
-      }
+    if (isRoomAdmin(room.admin.id, playerID)) {
+      removeAllFromRoom(room.id);
+    } else {
+      removePlayerFromRoom(room, socket);
+    }
   });
 
   socket.on('startGame', (room) => {
-    io.in(room.id).emit('startGame');
-  }); 
+    const updatedRoom = updateStartingPosition(room);
+
+    room.players.map((val, key) => { val.blocks = room.settings.maxBlocks; });
+
+    updateRooms(updatedRoom);
+
+    io.in(room.id).emit('startGame', room);
+  });
+
+  socket.on('playerWon', (room, player) => {
+    room.winner = player;
+
+    updateRooms(room);
+    emitRoomUpdate(room)
+  });
 
   socket.on('disconnect', () => {
     rooms.forEach((room, index) => {
@@ -178,24 +217,6 @@ io.on('connection', (socket) => {
       }
     });
   });
-
-
-
-
-
-
-
-
-
-
-  // Emit the initial grid data to the newly connected client
-  // socket.emit('gridUpdate', gridData);
-
-  // // Handle player move events from the client
-  // socket.on('playerMove', (data) => {
-  //   handlePlayerMove(socket, data);
-  // });
-
 });
 
 const PORT = process.env.PORT || 5000;

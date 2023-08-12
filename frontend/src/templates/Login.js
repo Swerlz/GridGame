@@ -24,11 +24,7 @@ const Login = ({ onSubmit }) => {
         col: 0,
     }
 
-    if (playerName !== '') {
-        socket.emit('newPlayer', player);
-    } else {
-        console.log('Player name is empty, cannot join.');
-    }
+    playerName !== '' && socket.emit('newPlayer', player);
   };
 
   return (
