@@ -237,82 +237,66 @@ const Game = ({ player, initialRoom }) => {
           const col = currentHover.dataset.col;
           const row = currentHover.dataset.row;
           const direction = e[axis] > rectPos ? 'right' : 'left';
-
+      
           const getDiv = (row, col) => document.querySelector(`div[data-row="${row}"][data-col="${col}"]`);
-
+          
+          const getMiddleSpace = (rowOffset, colOffset) => {
+              const newRow = isHorizontal ? row : +row + rowOffset;
+              const newCol = isHorizontal ? +col + colOffset : col;
+              return getDiv(newRow, newCol);
+          };
+      
           let middleR, middleL, middleXL, spaceR, spaceL, spaceXL;
-
+      
           if (isHorizontal) {
-            middleR = getDiv(row, +col + 1);
-            middleL = getDiv(row, col - 1);
-            middleXL = getDiv(row, +col + 3);
-            spaceR = getDiv(row, +col + 2);
-            spaceL = getDiv(row, col - 2);
-            spaceXL = getDiv(row, col - 4);
-
-            if ('right' === direction) {
-              middleXL = getDiv(row, +col + 3);
-              spaceXL = getDiv(row, +col + 4);
-            } else {
-              middleXL = getDiv(row, col - 3);
-              spaceXL = getDiv(row, col - 4);
-            }
+              middleR = getMiddleSpace(0, 1);
+              middleL = getMiddleSpace(0, -1);
+              spaceR = getMiddleSpace(0, 2);
+              spaceL = getMiddleSpace(0, -2);
+              middleXL = getMiddleSpace(0, 3);
+              spaceXL = getMiddleSpace(0, 4);
           } else {
-            middleR = getDiv(+row + 1, col);
-            middleL = getDiv(row - 1, col);
-            spaceR = getDiv(+row + 2, col);
-            spaceL = getDiv(row - 2, col);
-
-            if ('right' === direction) {
-              middleXL = getDiv(+row + 3, col);
-              spaceXL = getDiv(+row + 4, col);
-            } else {
-              middleXL = getDiv(row - 3, col);
-              spaceXL = getDiv(row - 4, col);
-            }
+              middleR = getMiddleSpace(1, 0);
+              middleL = getMiddleSpace(-1, 0);
+              spaceR = getMiddleSpace(2, 0);
+              spaceL = getMiddleSpace(-2, 0);
+              middleXL = getMiddleSpace(3, 0);
+              spaceXL = getMiddleSpace(4, 0);
           }
-
+      
+          if (direction === 'left') {
+              [middleR, middleL] = [middleL, middleR];
+              [spaceR, spaceL] = [spaceL, spaceR];
+              [middleXL, spaceXL] = [spaceXL, middleXL];
+          }
+      
           let divs = [currentHover];
-
+      
           currentHover.classList.add('blockHover');
-
-          if ('right' === direction) {
-            if (spaceR && middleR) {
+      
+          if (spaceR && middleR) {
               divs.push(spaceR);
               divs.push(middleR);
-            }
-
-            if (spaceL && spaceL.classList.contains('hasBlock') && !middleL.classList.contains('hasBlock')) {
-              divs.push(middleL);
-            }
-
-            if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
-              divs.push(middleXL);
-            }
-          } else {
-            if (spaceL && middleL) {
-              divs.push(spaceL);
-              divs.push(middleL);
-            }
-
-            if (spaceR && spaceR.classList.contains('hasBlock') && !middleR.classList.contains('hasBlock')) {
-              divs.push(middleR);
-            }
-
-            if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
-              divs.push(middleXL);
-            }
           }
-
-          divs.map(v => { v.classList.add('blockHover') })
-
+      
+          if (spaceL && spaceL.classList.contains('hasBlock') && !middleL.classList.contains('hasBlock')) {
+              divs.push(middleL);
+          }
+      
+          if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
+              divs.push(middleXL);
+          }
+      
+          divs.forEach(v => v.classList.add('blockHover'));
+      
           const data = { divs, direction, axis };
-
+      
           sethoverData(data);
-        }
+      }      
       }, 100);
     }
   };
+
 
   const handleLeave = () => {
     if (hoverData) {
