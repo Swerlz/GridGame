@@ -20,10 +20,6 @@ const io = require('socket.io')(http, {
 
 app.use(cors(corsOptions));
 
-if (MODE === 'production') {
-  app.use(express.static(path.join(__dirname, 'frontend/build')));
-}
-
 let rooms = [];
 
 function isRoomAdmin(adminID, playerID) {
