@@ -10,7 +10,7 @@ const FRONTEND_URL = MODE === 'production' ? process.env.FRONTEND_URL : process.
 const PORT = process.env.PORT || 5000;
 
 const corsOptions = {
-  origin: "http://localhost:3000",
+  origin: "https://dreamy-haupia-602c91.netlify.app",
   methods: ['GET', 'POST'],
 };
 
