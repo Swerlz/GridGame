@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Login from './templates/Login';
 import Lobby from './templates/Lobby';
 import Game from './templates/Game';
@@ -12,7 +12,6 @@ const App = () => {
   };
 
   const mainRoomUpdate = (newRoom) => {
-    console.log('updating main room')
     setRoom(newRoom);
   }
 

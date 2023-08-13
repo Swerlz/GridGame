@@ -58,10 +58,17 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
 
   useEffect(() => {
     socket.on('roomUpdated', (updatedRoom) => {
-      console.log(updatedRoom.status);
       if (updatedRoom.status === 'inLobby') {
         mainRoomUpdate(updatedRoom);
       } else {
+        if (updatedRoom.winner) {
+          if (updatedRoom.winner.id === player.id) {
+            setErrorMsg('no problems, you won. idiot');
+          } else {
+            setErrorMsg('you lost, idiot.')
+          }
+        }
+
         setRoom(updatedRoom);
       }
     });
@@ -122,21 +129,8 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
   function movePlayer(row, col, rowOffset, colOffset) {
     let blockX, blockY;
 
-    if (rowOffset === 0) {
-      blockY = row;
-      if (colOffset > 0) {
-        blockX = col + (colOffset - 1);
-      } else {
-        blockX = col + (colOffset + 1);
-      }
-    } else {
-      blockX = col;
-      if (rowOffset > 0) {
-        blockY = row + (rowOffset - 1);
-      } else {
-        blockY = row + (rowOffset + 1);
-      }
-    }
+    blockX = col + (rowOffset === 0 ? (colOffset > 0 ? colOffset - 1 : colOffset + 1) : 0);
+    blockY = row + (colOffset === 0 ? (rowOffset > 0 ? rowOffset - 1 : rowOffset + 1) : 0);
 
     const checkW = collisionWinner(+row + rowOffset, +col + colOffset);
     if (checkW) {
@@ -147,7 +141,6 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       const checkG = collisionGrid(+row + rowOffset, +col + colOffset);
 
       if (checkB || checkP || checkG) {
-        console.log('err');
         setErrorMsg(`You cannot move there, idiot.`);
         return false;
       } else {
@@ -237,7 +230,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
     const currentHover = e.target;
     const currentPlayer = getPlayer();
 
-    if (currentPlayer && currentPlayer.blocks > 0 && room.turn.id === player.id) {
+    if (currentPlayer && currentPlayer.blocks > 0 && room.turn.id === player.id && !room.winner) {
       setTimeout(() => {
         if (currentHover.matches(':hover')) {
           const isHorizontal = currentHover.classList.contains('block');
@@ -327,7 +320,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
         <h4>Players</h4>
         <ul>
           {room.players.map((p) => {
-            return <li key={p.id}>{p.name} {p.name === room.turn.name ? '- your turn, idiot' : ''}</li>
+            return <li key={p.id}>{p.name} - {p.name === room.turn.name ? 'your turn, idiot' : ''}</li>
           })}
         </ul>
       </div>
@@ -384,7 +377,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
             </div>
           ))}
         </div>
-        {room.winner ? ( 
+        {room.winner && room.admin.id === player.id ? ( 
         <div>
           <button onClick={() => {socket.emit('roomStatus', room.id, 'inLobby')}}>Lobby</button>
           <button onClick={() => {socket.emit('startGame', room)}}>Play Again</button>

@@ -1,20 +1,22 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http').createServer(express);
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const io = require('socket.io')(http, {
   cors: {
-    origin: 'http://localhost:3000', // Replace with your frontend's URL
+    origin: FRONTEND_URL,
     methods: ['GET', 'POST'],
   },
 });
 
 let rooms = [];
 
-express().use(
-  cors({
-    origin: 'http://localhost:3000',
-  })
-);
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+};
+
+express().use(cors(corsOptions));
 
 function isRoomAdmin(adminID, playerID) {
   return adminID === playerID;
@@ -84,11 +86,11 @@ function updateStartingPosition(room) {
     } else if (index === 2) {
       row = (gridSize - 1) / 2;
       col = 0;
-      winLane = 'col-0';
+      winLane = 'col-' + gridSize;
     } else {
       row = (gridSize - 1) / 2;
       col = gridSize - 1;
-      winLane = 'col-' + gridSize;
+      winLane = 'col-0';
     }
 
     player.winLane = winLane;
@@ -165,7 +167,7 @@ io.on('connection', (socket) => {
       emitRoomUpdate(roomID, roomFound);
     }
   });
-  
+
   socket.on('playerWon', (roomID, player) => {
     const roomFound = findRoom(roomID);
 
@@ -198,7 +200,7 @@ io.on('connection', (socket) => {
 
     if (roomFound) {
       roomFound.status = status;
-      
+
       updateRooms(roomFound);
       emitRoomUpdate(roomFound.id, roomFound)
     }
