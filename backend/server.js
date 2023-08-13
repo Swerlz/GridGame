@@ -2,12 +2,13 @@ require('dotenv').config();
 const cors = require('cors');
 
 const express = require('express');
+const serverless = require('serverless-http');
 const app = express();
 
 const http = require('http').createServer(express);
 
 const MODE = process.env.NODE_ENV;
-const FRONTEND_URL = MODE === 'prod' ? process.env.FRONTEND_URL : process.env.DEV_URL;
+const FRONTEND_URL = MODE === 'production' ? process.env.FRONTEND_URL : process.env.DEV_URL;
 const PORT = process.env.PORT || 5000;
 
 const corsOptions = {
@@ -21,7 +22,7 @@ const io = require('socket.io')(http, {
 
 app.use(cors(corsOptions));
 
-if (MODE === 'prod') {
+if (MODE === 'production') {
   app.use(express.static(path.join(__dirname, 'frontend/build')));
 }
 
@@ -258,3 +259,6 @@ io.on('connection', (socket) => {
 http.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+module.exports = app;
+module.exports.handler = serverless(app);

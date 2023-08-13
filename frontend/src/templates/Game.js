@@ -53,8 +53,8 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
+  // eslint-disable-next-line
   }, [room]);
-
 
   useEffect(() => {
     socket.on('roomUpdated', (updatedRoom) => {
@@ -81,6 +81,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       socket.off('roomUpdated');
       socket.off('startGame');
     };
+  // eslint-disable-next-line
   }, []);
 
   function collisionGrid(row, col) {
@@ -210,7 +211,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
         if (!pathBlocked) {
           let allBlocks = [...room.blocks];
 
-          hoverData.divs.map((div, key) => {
+          hoverData.divs.forEach((div, key) => {
             if (div && !div.classList.contains('hasBlock')) {
               allBlocks.push({ row: parseInt(div.dataset.row), col: parseInt(div.dataset.col) });
             }
@@ -303,7 +304,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
   const handleLeave = () => {
     if (hoverData) {
 
-      hoverData.divs.map((div) => {
+      hoverData.divs.forEach((div) => {
         if (div) {
           div.classList.remove('blockHover');
         }

@@ -12,6 +12,7 @@ const Login = ({ onSubmit }) => {
     return () => {
         socket.off('playerAdded');
     };
+  // eslint-disable-next-line
   }, []);
 
   const handleSubmit = (e) => {

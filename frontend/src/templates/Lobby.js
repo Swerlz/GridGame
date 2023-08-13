@@ -37,6 +37,7 @@ const Lobby = ({ player, mainRoomUpdate, room }) => {
             socket.off('roomUpdated');
             socket.off('startGame');
         };
+    // eslint-disable-next-line
     }, [currentRoom]);
 
     const createRoom = (e) => {
