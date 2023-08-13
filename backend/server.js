@@ -1,22 +1,31 @@
 require('dotenv').config();
-const express = require('express');
 const cors = require('cors');
-const http = require('http').createServer(express);
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const io = require('socket.io')(http, {
-  cors: {
-    origin: FRONTEND_URL,
-    methods: ['GET', 'POST'],
-  },
-});
 
-let rooms = [];
+const express = require('express');
+const app = express();
+
+const http = require('http').createServer(express);
+
+const MODE = process.env.NODE_ENV;
+const FRONTEND_URL = MODE === 'prod' ? process.env.FRONTEND_URL : process.env.DEV_URL;
+const PORT = process.env.PORT || 5000;
 
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: FRONTEND_URL,
+  methods: ['GET', 'POST'],
 };
 
-express().use(cors(corsOptions));
+const io = require('socket.io')(http, {
+  cors: corsOptions,
+});
+
+app.use(cors(corsOptions));
+
+if (MODE === 'prod') {
+  app.use(express.static(path.join(__dirname, 'frontend/build')));
+}
+
+let rooms = [];
 
 function isRoomAdmin(adminID, playerID) {
   return adminID === playerID;
@@ -245,8 +254,6 @@ io.on('connection', (socket) => {
     });
   });
 });
-
-const PORT = process.env.PORT || 5000;
 
 http.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
