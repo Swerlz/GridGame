@@ -1,3 +1,4 @@
+require('dotenv').config();
 const cors = require('cors');
 
 const express = require('express');
@@ -5,12 +6,12 @@ const app = express();
 
 const http = require('http').createServer(express);
 
-const MODE = process.env.NODE_ENV;
-const FRONTEND_URL = MODE === 'production' ? process.env.FRONTEND_URL : process.env.DEV_URL;
-const PORT = process.env.PORT || 5000;
+const FRONTEND_URL = process.env.REACT_APP_ENV === 'production' ? process.env.REACT_APP_FRONT_PROD_URL : process.env.REACT_APP_FRONT_DEV_URL;
+const PORT = process.env.REACT_APP_PORT || 5000;
+
 
 const corsOptions = {
-  origin: "https://dreamy-haupia-602c91.netlify.app",
+  origin: FRONTEND_URL,
   methods: ['GET', 'POST'],
 };
 
@@ -32,6 +33,10 @@ function lobbyUpdate() {
 
 function emitRoomUpdate(id, updatedRoom) {
   io.in(id).emit('roomUpdated', updatedRoom);
+}
+
+function emitSettingsUpdate(id, updatedRoom) {
+  io.in(id).emit('settingsUpdate', updatedRoom);
 }
 
 function updateRooms(updatedRoom) {
@@ -107,14 +112,25 @@ function updateStartingPosition(room) {
 
 function updateNextPlayer(roomFound, currentPlayerID) {
   const playerIndex = roomFound.players.findIndex(p => p.id === currentPlayerID);
-
   let nextPlayerIndex = playerIndex + 1;
 
   if (nextPlayerIndex >= roomFound.players.length) {
     nextPlayerIndex = 0;
   }
 
-  roomFound.turn = roomFound.players[nextPlayerIndex];
+  const nextPlayer = roomFound.players[nextPlayerIndex];
+
+  // Check if the next player's delay is greater than 0
+  if (nextPlayer.delay > 0) {
+    // Decrease the delay by 1 for the current player
+    nextPlayer.delay--;
+
+    // Call the function recursively to find the next player again
+    updateNextPlayer(roomFound, nextPlayer.id);
+  } else {
+    // If delay is not greater than 0, update the turn to the next player
+    roomFound.turn = nextPlayer;
+  }
 }
 
 function getRandomPlayer(players) {
@@ -122,9 +138,8 @@ function getRandomPlayer(players) {
 }
 
 io.on('connection', (socket) => {
-
+  
   socket.on('newPlayer', (player) => {
-    player.inGame = false;
     player.id = socket.id;
 
     socket.join('lobby');
@@ -148,8 +163,8 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', (id, player) => {
     const targetRoom = findRoom(id);
 
-    if (targetRoom) {
-      targetRoom.players.push({ name: player.name, id: player.id });
+    if (targetRoom && targetRoom.players.length < 4) {
+      targetRoom.players.push(player);
 
       updateRooms(targetRoom);
 
@@ -210,6 +225,10 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('updateSettings', (roomID, settings) => {
+    emitSettingsUpdate(roomID, settings);
+  });
+
   socket.on('leaveRoom', (room, playerID) => {
     if (isRoomAdmin(room.admin.id, playerID)) {
       removeAllFromRoom(room.id);
@@ -221,7 +240,10 @@ io.on('connection', (socket) => {
   socket.on('startGame', (room) => {
     const randomPlayer = getRandomPlayer(room.players);
 
-    room.players.map((val, key) => { val.blocks = room.settings.maxBlocks; });
+    room.players.map((val, key) => { 
+      val.blocks = room.settings.maxBlocks; 
+      val.delay = 0;
+    });
     room.winner = null;
     room.turn.name = randomPlayer.name;
     room.turn.id = randomPlayer.id;

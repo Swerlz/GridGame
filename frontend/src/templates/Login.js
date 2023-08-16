@@ -20,9 +20,6 @@ const Login = ({ onSubmit }) => {
 
     var player = {
         name: playerName.trim(),
-        inGame: false,
-        row: 0,
-        col: 0,
     }
 
     playerName !== '' && socket.emit('newPlayer', player);

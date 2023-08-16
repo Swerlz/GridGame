@@ -10,16 +10,19 @@ const Game = ({ room }) => {
         const translateY = player.col * size + 'px';
 
         return (
-            <div
-                key={index}
-                data-playerid={player.id}
-                data-row={player.row}
-                data-col={player.col}
-                className={`player player${index + 1}`}
-                style={{
-                    transform: `translate(${translateY}, ${translateX})`,
-                }}
-            ></div>
+            <>
+              <div key={`finish${index + 1}`} className={`finish${index + 1}`}></div>
+              <div
+                  key={index}
+                  data-playerid={player.id}
+                  data-row={player.row}
+                  data-col={player.col}
+                  className={`player player${index + 1}`}
+                  style={{
+                      transform: `translate(${translateY}, ${translateX})`,
+                  }}
+              ></div>
+            </>
         );
     });
   };

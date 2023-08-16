@@ -50,16 +50,11 @@ const Lobby = ({ player, mainRoomUpdate, room }) => {
             name:       roomName,
             turn:       {name: player.name, id: player.id},
             admin:      {name: player.name, id: player.id},
-            players:    [{ name: player.name, id: player.id, row: 0, col: 0}],
+            players:    [player],
             blocks:     [],
             winner:     null,
             status:     'inLobby',
-            settings: {
-                maxBlocks: 8,
-                breakWalls: false,
-                jumpWalls: true,
-                gridSize: 17
-            }
+            settings:   {}
         };
 
         setIsCreatingRoom(false);

@@ -41,8 +41,11 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
 
           if ('Winner' === updatedPlayers) {
             socket.emit('playerWon', room.id, foundPlayer);
+            window.removeEventListener('keydown', handleKeyPress);
           } else if (updatedPlayers) {
+            console.log(updatedPlayers);
             socket.emit('playerMove', room.id, updatedPlayers, player.id);
+            window.removeEventListener('keydown', handleKeyPress);
           }
         }
       }
@@ -53,7 +56,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
     return () => {
       window.removeEventListener('keydown', handleKeyPress);
     };
-  // eslint-disable-next-line
+    // eslint-disable-next-line
   }, [room]);
 
   useEffect(() => {
@@ -72,7 +75,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
         setRoom(updatedRoom);
       }
     });
-    
+
     socket.on('startGame', (gameRoom) => {
       setRoom(gameRoom);
     });
@@ -81,8 +84,12 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       socket.off('roomUpdated');
       socket.off('startGame');
     };
-  // eslint-disable-next-line
+    // eslint-disable-next-line
   }, []);
+
+  const getPlayer = () => {
+    return room.players.find(p => p.id === player.id);
+  }
 
   function collisionGrid(row, col) {
     return (row < 0 || row > room.settings.gridSize) || (col < 0 || col > room.settings.gridSize);
@@ -141,23 +148,30 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       const checkP = collisionPlayer(+row + rowOffset, +col + colOffset);
       const checkG = collisionGrid(+row + rowOffset, +col + colOffset);
 
-      if (checkB || checkP || checkG) {
-        setErrorMsg(`You cannot move there, idiot.`);
-        return false;
-      } else {
+      if (room.settings.jumpActive && checkB && !checkP) {
         return room.players.map(p => {
           if (p.id === player.id) {
             p.row += rowOffset;
             p.col += colOffset;
+            p.delay = room.settings.jumpDelay;
           }
           return p;
         });
+      } else {
+        if (checkB || checkP || checkG) {
+          setErrorMsg(`You cannot move there, idiot.`);
+          return false;
+        } else {
+          return room.players.map(p => {
+            if (p.id === player.id) {
+              p.row += rowOffset;
+              p.col += colOffset;
+            }
+            return p;
+          });
+        }
       }
     }
-  }
-
-  const getPlayer = () => {
-    return room.players.find(p => p.id === player.id);
   }
 
   const isPlayersBoxed = () => {
@@ -195,7 +209,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       }
     }
 
-    return (cells - isBlocked) > 1 ? false : true;
+    return (cells - isBlocked) > 2 ? false : true;
   }
 
   const placeBlock = () => {
@@ -219,7 +233,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
 
           socket.emit('addBlocks', room.id, allBlocks, player.id);
         } else {
-          setErrorMsg('You cannot bloth the path! Idiot.');
+          setErrorMsg('You cannot block the path! Idiot.');
         }
       } else {
         setErrorMsg('You cannot block a player! Idiot.');
@@ -238,65 +252,80 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
           const axis = isHorizontal ? 'clientX' : 'clientY';
           const rect = currentHover.getBoundingClientRect();
           const rectPos = isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
-          const col = currentHover.dataset.col;
-          const row = currentHover.dataset.row;
+          const currentCol = parseInt(currentHover.dataset.col);
+          const currentRow = parseInt(currentHover.dataset.row);
           const direction = e[axis] > rectPos ? 'right' : 'left';
-      
+
           const getDiv = (row, col) => document.querySelector(`div[data-row="${row}"][data-col="${col}"]`);
-          
-          const getMiddleSpace = (rowOffset, colOffset) => {
-              const newRow = isHorizontal ? row : +row + rowOffset;
-              const newCol = isHorizontal ? +col + colOffset : col;
-              return getDiv(newRow, newCol);
-          };
-      
-          let middleR, middleL, middleXL, spaceR, spaceL, spaceXL;
-      
-          if (isHorizontal) {
-              middleR = getMiddleSpace(0, 1);
-              middleL = getMiddleSpace(0, -1);
-              spaceR = getMiddleSpace(0, 2);
-              spaceL = getMiddleSpace(0, -2);
-              middleXL = getMiddleSpace(0, 3);
-              spaceXL = getMiddleSpace(0, 4);
-          } else {
-              middleR = getMiddleSpace(1, 0);
-              middleL = getMiddleSpace(-1, 0);
-              spaceR = getMiddleSpace(2, 0);
-              spaceL = getMiddleSpace(-2, 0);
-              middleXL = getMiddleSpace(3, 0);
-              spaceXL = getMiddleSpace(4, 0);
-          }
-      
-          if (direction === 'left') {
-              [middleR, middleL] = [middleL, middleR];
-              [spaceR, spaceL] = [spaceL, spaceR];
-              [middleXL, spaceXL] = [spaceXL, middleXL];
-          }
-      
+
           let divs = [currentHover];
-      
+          let newCols = [];
+          let colsArr = [];
+
+          newCols.push({ row: currentRow, col: currentCol });
+
+          if (isHorizontal) {
+            if ('right' === direction) {
+              divs.push(getDiv(currentRow, +currentCol + 2))
+              newCols.push({ row: currentRow, col: +currentCol + 2 });
+            } else {
+              divs.push(getDiv(currentRow, currentCol - 2))
+              newCols.push({ row: currentRow, col: currentCol - 2 });
+            }
+
+            const arr = [...room.blocks, ...newCols];
+
+            arr.filter((v, k) => {
+              if (v.row === currentRow) {
+                colsArr.push(v.col);
+              }
+            })
+
+            colsArr.sort((a, b) => a - b);
+
+            for (let i = 0; i < colsArr.length - 1; i++) {
+              if (colsArr[i] + 2 === colsArr[i + 1]) {
+                divs.push(getDiv(currentRow, colsArr[i] + 1));
+              }
+            }
+          } else {
+            if ('right' === direction) {
+              divs.push(getDiv(+currentRow + 2, currentCol))
+              newCols.push({ row: +currentRow + 2, col: currentCol });
+            } else {
+              divs.push(getDiv(currentRow - 2, currentCol))
+              newCols.push({ row: currentRow - 2, col: currentCol });
+            }
+
+            const arr = [...room.blocks, ...newCols];
+
+            arr.filter((v, k) => {
+              if (v.col === currentCol) {
+                colsArr.push(v.row);
+              }
+            })
+
+            colsArr.sort((a, b) => a - b);
+
+            for (let i = 0; i < colsArr.length - 1; i++) {
+              if (colsArr[i] + 2 === colsArr[i + 1]) {
+                divs.push(getDiv(colsArr[i] + 1, currentCol));
+              }
+            };
+          }
+
           currentHover.classList.add('blockHover');
-      
-          if (spaceR && middleR) {
-              divs.push(spaceR);
-              divs.push(middleR);
-          }
-      
-          if (spaceL && spaceL.classList.contains('hasBlock') && !middleL.classList.contains('hasBlock')) {
-              divs.push(middleL);
-          }
-      
-          if (spaceXL && spaceXL.classList.contains('hasBlock') && !middleXL.classList.contains('hasBlock')) {
-              divs.push(middleXL);
-          }
-      
-          divs.forEach(v => v.classList.add('blockHover'));
-      
+
+          divs.forEach(v => {
+            if (v) {
+              v.classList.add('blockHover')
+            }
+          });
+
           const data = { divs, direction, axis };
-      
+
           sethoverData(data);
-      }      
+        }
       }, 100);
     }
   };
@@ -320,8 +349,8 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
       <div>
         <h4>Players</h4>
         <ul>
-          {room.players.map((p) => {
-            return <li key={p.id}>{p.name} - {p.name === room.turn.name ? 'your turn, idiot' : ''}</li>
+          {room.players.map((p, index) => {
+            return <li key={p.id} className={`turn${index + 1}`}>{p.name} - {p.name === room.turn.name ? 'your turn, idiot' : ''}</li>
           })}
         </ul>
       </div>
@@ -364,7 +393,7 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
 
                 return (
                   <div
-                    key={colIndex}
+                    key={rowIndex + colIndex}
                     className={classNames}
                     data-row={rowIndex}
                     data-col={colIndex}
@@ -378,12 +407,12 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
             </div>
           ))}
         </div>
-        {room.winner && room.admin.id === player.id ? ( 
-        <div>
-          <button onClick={() => {socket.emit('roomStatus', room.id, 'inLobby')}}>Lobby</button>
-          <button onClick={() => {socket.emit('startGame', room)}}>Play Again</button>
-        </div>
-        ) : null }
+        {room.winner && room.admin.id === player.id ? (
+          <div>
+            <button onClick={() => { socket.emit('roomStatus', room.id, 'inLobby') }}>Lobby</button>
+            <button onClick={() => { socket.emit('startGame', room) }}>Play Again</button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

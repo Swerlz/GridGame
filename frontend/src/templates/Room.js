@@ -1,9 +1,26 @@
-import React, {useState} from 'react';
+import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import socket from '../socket';
 
 const Room = ({ room, theplayer, leaveRoom, startGame }) => {
-  const [gridSize, setGridSize] = useState(17); 
-  const [blocks, setBlocks] = useState(6);
+  const [settings, setSettings] = useState({
+    gridSize: 17,
+    maxBlocks: 6,
+    jumpActive: false,
+    jumpDelay: 2,
+  })
+
+  useEffect(() => {
+    socket.on('settingsUpdate', (updatedSettings) => {
+      console.log(updatedSettings)
+      setSettings(updatedSettings);
+    });
+
+
+    return () => {
+      socket.off('settingsUpdate');
+    };
+  }, [settings]);
 
   const gridOptions = [13, 17, 21];
 
@@ -11,20 +28,21 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
     return <div>Loading...</div>;
   }
 
+
   const handleStartGame = () => {
-    const settings = {
-      gridSize,
-      maxBlocks: blocks
-    }
-    
     startGame(settings);
   };
+
+  const saveSettings = () => {
+    console.log(settings);
+    socket.emit('updateSettings', room.id, settings);
+  }
 
   return (
     <>
       <h2>Room Name: {room.name}</h2>
 
-      {theplayer.id === room.admin.id &&
+
       <div>
         <h2>Settings</h2>
         <div>
@@ -33,25 +51,46 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
             {gridOptions.map((option) => (
               <p
                 key={option}
-                onClick={(prev) => setGridSize(option)}
-                className={gridSize === option ? 'activeSetting' : ''}
+                onClick={theplayer.id === room.admin.id ? (prev) => setSettings({ ...settings, gridSize: option }) : null}
+                className={settings.gridSize === option ? 'activeSetting' : ''}
               >
                 {option}
               </p>
             ))}
           </div>
         </div>
-        
+
         <div>
-        <h4>Wall Blocks Amount</h4>
-            <input
-              type="number"
-              value={blocks}
-              onChange={(e) => setBlocks(e.target.value)}
-            />
+          <h4>Max Wall Blocks</h4>
+          <input
+            type="number"
+            value={settings.maxBlocks}
+            onChange={(e) => setSettings({ ...settings, maxBlocks: parseInt(e.target.value) })}
+          />
+        </div>
+
+        <div>
+          <h4>Wall Jump Delay</h4>
+          <input
+            type="number"
+            value={settings.jumpDelay}
+            onChange={(e) => setSettings({ ...settings, jumpDelay: parseInt(e.target.value, 10) })}
+          />
+        </div>
+
+        <div>
+          <h4>Enable Wall Jump</h4>
+          <input type='checkbox'
+            id="jump"
+            name="jump"
+            checked={settings.jumpActive}
+            onChange={() => setSettings({ ...settings, jumpActive: !settings.jumpActive })}
+          />
         </div>
       </div>
-      }
+
+      {theplayer.id === room.admin.id && <button onClick={saveSettings}>Save Settings</button>}
+
 
       <div>
         <h2>Players in the Room</h2>

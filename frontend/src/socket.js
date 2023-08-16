@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 
-const socket = io('https://grid-server.onrender.com:10000');
+const socketURL = process.env.REACT_APP_ENV === 'production' ? process.env.REACT_APP_SERVER_PROD_URL : process.env.REACT_APP_SERVER_DEV_URL;
 
-console.log(socket);
+const socket = io(socketURL);
 
 export default socket;
