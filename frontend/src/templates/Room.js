@@ -8,11 +8,13 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
     maxBlocks: 6,
     jumpActive: false,
     jumpDelay: 2,
+    randomStart: false,
+    randomBlocks: 0,
+    randomPlayerBlocks: 0,
   })
 
   useEffect(() => {
     socket.on('settingsUpdate', (updatedSettings) => {
-      console.log(updatedSettings)
       setSettings(updatedSettings);
     });
 
@@ -22,7 +24,7 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
     };
   }, [settings]);
 
-  const gridOptions = [13, 17, 21];
+  const gridOptions = [13, 17, 21, 25];
 
   if (!room || room.length === 0) {
     return <div>Loading...</div>;
@@ -87,10 +89,37 @@ const Room = ({ room, theplayer, leaveRoom, startGame }) => {
             onChange={() => setSettings({ ...settings, jumpActive: !settings.jumpActive })}
           />
         </div>
+        
+        <div>
+          <h4>Random Start Position</h4>
+          <input type='checkbox'
+            id="jump"
+            name="jump"
+            checked={settings.randomStartPos}
+            onChange={() => setSettings({ ...settings, randomStartPos: !settings.randomStartPos })}
+          />
+        </div>
+        
+        <div>
+          <h4>Random Blocks</h4>
+          <input
+            type="number"
+            value={settings.randomBlocks}
+            onChange={(e) => setSettings({ ...settings, randomBlocks: parseInt(e.target.value, 10) })}
+          />
+        </div>
+
+        <div>
+          <h4>Random Player Blocks</h4>
+          <input
+            type="number"
+            value={settings.randomPlayerBlocks}
+            onChange={(e) => setSettings({ ...settings, randomPlayerBlocks: parseInt(e.target.value, 10) })}
+          />
+        </div>
       </div>
 
       {theplayer.id === room.admin.id && <button onClick={saveSettings}>Save Settings</button>}
-
 
       <div>
         <h2>Players in the Room</h2>

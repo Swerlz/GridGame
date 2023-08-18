@@ -11,53 +11,57 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
     Array.from({ length: room.settings.gridSize }, () => 'empty')
   );
 
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (room.turn.id === player.id && !room.winner) {
-        const foundPlayer = getPlayer(player.id);
+  // useEffect(() => {
+  //   const handleKeyPress = (event) => {
+  //     if (room.turn.id === player.id && !room.winner) {
+  //       const foundPlayer = getPlayer(player.id);
 
-        if (foundPlayer) {
-          const { row, col } = foundPlayer;
-          let updatedPlayers;
+  //       if (foundPlayer) {
+  //         const { row, col } = foundPlayer;
+  //         let updatedPlayers;
 
-          setErrorMsg('');
+  //         setErrorMsg('');
 
-          switch (event.key) {
-            case 'ArrowUp':
-              updatedPlayers = movePlayer(row, col, -2, 0);
-              break;
-            case 'ArrowDown':
-              updatedPlayers = movePlayer(row, col, +2, 0);
-              break;
-            case 'ArrowLeft':
-              updatedPlayers = movePlayer(row, col, 0, -2);
-              break;
-            case 'ArrowRight':
-              updatedPlayers = movePlayer(row, col, 0, +2);
-              break;
-            default:
-              break;
-          }
+  //         switch (event.key) {
+  //           case 'ArrowUp':
+  //             updatedPlayers = movePlayer(row, col, -2, 0);
+  //             break;
+  //           case 'ArrowDown':
+  //             updatedPlayers = movePlayer(row, col, +2, 0);
+  //             break;
+  //           case 'ArrowLeft':
+  //             updatedPlayers = movePlayer(row, col, 0, -2);
+  //             break;
+  //           case 'ArrowRight':
+  //             updatedPlayers = movePlayer(row, col, 0, +2);
+  //             break;
+  //           default:
+  //             break;
+  //         }
 
-          if ('Winner' === updatedPlayers) {
-            socket.emit('playerWon', room.id, foundPlayer);
-            window.removeEventListener('keydown', handleKeyPress);
-          } else if (updatedPlayers) {
-            console.log(updatedPlayers);
-            socket.emit('playerMove', room.id, updatedPlayers, player.id);
-            window.removeEventListener('keydown', handleKeyPress);
-          }
-        }
-      }
-    };
+  //         if ('Winner' === updatedPlayers) {
+  //           socket.emit('playerWon', room.id, foundPlayer);
+  //           window.removeEventListener('keydown', handleKeyPress);
+  //         } else if (updatedPlayers) {
+  //           console.log(updatedPlayers);
+  //           socket.emit('playerMove', room.id, updatedPlayers, player.id);
+  //           window.removeEventListener('keydown', handleKeyPress);
+  //         }
+  //       }
+  //     }
+  //   };
 
-    window.addEventListener('keydown', handleKeyPress);
+  //   window.addEventListener('keydown', handleKeyPress);
 
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-    // eslint-disable-next-line
-  }, [room]);
+  //   return () => {
+  //     window.removeEventListener('keydown', handleKeyPress);
+  //   };
+  //   // eslint-disable-next-line
+  // }, [room]);
+
+  // playerPos = ['0000]
+  // grid = ['0000', '0002', '0004', 0200, 0400, ];
+  // blocks = [0100]
 
   useEffect(() => {
     socket.on('roomUpdated', (updatedRoom) => {
@@ -71,6 +75,8 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
             setErrorMsg('you lost, idiot.')
           }
         }
+
+        console.log('roomUpdates');
 
         setRoom(updatedRoom);
       }
@@ -381,7 +387,8 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
                 }
 
                 for (const roomBlock of room.blocks) {
-                  if (rowIndex === roomBlock.row && colIndex === roomBlock.col) {
+                  const split = roomBlock.split("-");
+                  if (rowIndex == split[0] && colIndex == split[1]) {
                     hasBlock = true;
                     break;
                   }
@@ -407,13 +414,13 @@ const Game = ({ player, initialRoom, mainRoomUpdate }) => {
             </div>
           ))}
         </div>
+      </div>
         {room.winner && room.admin.id === player.id ? (
           <div>
             <button onClick={() => { socket.emit('roomStatus', room.id, 'inLobby') }}>Lobby</button>
             <button onClick={() => { socket.emit('startGame', room) }}>Play Again</button>
           </div>
         ) : null}
-      </div>
     </div>
   );
 };

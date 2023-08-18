@@ -118,6 +118,10 @@ body {
   background-color: #ffff00;
 }
 
+.turn4 {
+  color: #ffff00;
+}
+
 .player {
   position: absolute;
   width: 40px;

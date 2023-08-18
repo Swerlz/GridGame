@@ -80,24 +80,26 @@ function removePlayerFromRoom(room, playerSocket) {
 }
 
 function updateStartingPosition(room) {
+  var isRandom = room.settings.randomStart;
+  const gridSize = room.settings.gridSize;
+
   room.players.forEach((player, index) => {
-    const gridSize = room.settings.gridSize;
     let row, col, winLane;
 
     if (index === 0) {
+      col = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2; 
       row = gridSize - 1;
-      col = (gridSize - 1) / 2;
       winLane = 'row-0';
     } else if (index === 1) {
       row = 0;
-      col = (gridSize - 1) / 2;
+      col = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
       winLane = 'row-' + gridSize;
     } else if (index === 2) {
-      row = (gridSize - 1) / 2;
+      row = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
       col = 0;
       winLane = 'col-' + gridSize;
     } else {
-      row = (gridSize - 1) / 2;
+      row = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
       col = gridSize - 1;
       winLane = 'col-0';
     }
@@ -120,21 +122,31 @@ function updateNextPlayer(roomFound, currentPlayerID) {
 
   const nextPlayer = roomFound.players[nextPlayerIndex];
 
-  // Check if the next player's delay is greater than 0
   if (nextPlayer.delay > 0) {
-    // Decrease the delay by 1 for the current player
     nextPlayer.delay--;
 
-    // Call the function recursively to find the next player again
     updateNextPlayer(roomFound, nextPlayer.id);
   } else {
-    // If delay is not greater than 0, update the turn to the next player
     roomFound.turn = nextPlayer;
   }
 }
 
 function getRandomPlayer(players) {
   return players[Math.floor(Math.random() * players.length)];
+}
+
+function getRandomOddNumber(min, max) {
+  const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
+  return randomNumber % 2 === 0 ? randomNumber + 1 : randomNumber;
+}
+
+function getRandomEvenNumber(min, max) {
+  const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
+  return randomNumber % 2 !== 0 ? randomNumber + 1 : randomNumber;
+}  
+
+function getRandomNumber(max) {
+  return randomNumber = Math.floor(Math.random() * (max - 1));
 }
 
 io.on('connection', (socket) => {
@@ -237,6 +249,36 @@ io.on('connection', (socket) => {
     }
   });
 
+  function setRandomBlocks(randomBlocks, randomPlayerBlocks, gridSize) {
+    let randomArray = [];
+    
+    if (randomBlocks > 0) {
+      for (let i = 0; i < randomBlocks; i++) {
+        let row = getRandomNumber(gridSize);
+        let col;
+
+        if (row % 2 === 0) {
+          col = getRandomOddNumber(0, gridSize);
+        } else {
+          col = getRandomEvenNumber(0, gridSize);
+        }
+
+        randomArray.push(row.toString() + '-' + col.toString());
+      }
+    } 
+    
+    if (randomPlayerBlocks > 0) {
+      for (let i = 0; i < randomPlayerBlocks; i++) {
+        let row = getRandomEvenNumber(0, gridSize);
+        let col = getRandomEvenNumber(0, gridSize);
+
+        randomArray.push(row.toString() + '-' + col.toString());
+      }
+    }
+
+    return randomArray;
+  }
+
   socket.on('startGame', (room) => {
     const randomPlayer = getRandomPlayer(room.players);
 
@@ -244,10 +286,11 @@ io.on('connection', (socket) => {
       val.blocks = room.settings.maxBlocks; 
       val.delay = 0;
     });
+
     room.winner = null;
     room.turn.name = randomPlayer.name;
     room.turn.id = randomPlayer.id;
-    room.blocks = [];
+    room.blocks = setRandomBlocks(room.settings.randomBlocks, room.settings.randomPlayerBlocks, room.settings.gridSize - 1);
     room.status = 'inGame';
     room = updateStartingPosition(room);
 
