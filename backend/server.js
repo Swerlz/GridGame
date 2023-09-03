@@ -1,5 +1,4 @@
 require('dotenv').config();
-const { error } = require('console');
 const cors = require('cors');
 
 const express = require('express');
@@ -275,7 +274,6 @@ io.on('connection', (socket) => {
         socket.emit('alert', newAlert);
       }
     } else {
-      // Room Full.
       let alert = 'Room not found.';
 
       const newAlert = {alert, style: 'danger'};
