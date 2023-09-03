@@ -1,0 +1,324 @@
+@mixin generate-block-styles($type) {
+
+  .block.blockHover,
+  .block-mid.blockHover,
+  .block-mid.hasBlock,
+  .block.hasBlock {
+    background-image: url('../../public/images/blocks/#{$type}-horizontal-block.jpg');
+  }
+
+  .block-vert.blockHover,
+  .block-vert.hasBlock {
+    background-image: url('../../public/images/blocks/#{$type}-vertical-block.jpg');
+  }
+
+  .square.hasBlock {
+    background-image: url('../../public/images/blocks/#{$type}-square-block.jpg');
+  }
+
+  $number-of-images: 10;
+
+  @for $i from 1 through $number-of-images {
+    .tile-#{$i} {
+      background-image: url('../../public/images/tiles/#{$type}-#{$i}.jpg');
+    }
+  }
+}
+
+.game {
+  grid-column: middle;
+  grid-row: 2 / 5;
+  justify-self: center;
+  width: fit-content;
+
+  
+  .game-turn {
+    position: absolute;
+    top: -50px;
+    color: var(--color-light);
+  }
+
+  .block {
+    position: relative;
+  }
+
+  .game-bg-sand {
+    @include generate-block-styles(sand);
+
+    & .bg-square,
+    .square.hasBlock {
+      opacity: .9;
+    }
+  }
+
+  .game-bg-ice {
+    @include generate-block-styles(ice);
+  }
+
+  .game-bg-fire {
+    @include generate-block-styles(fire);
+  }
+
+  .game-bg-marble {
+    @include generate-block-styles(marble);
+  }
+
+  .game-bg-grid {
+    @include generate-block-styles(grid);
+  }
+
+  .bg-cell {
+    border-radius: .3rem;
+  }
+
+  .square-row {
+    .bg-square:nth-child(3n + 3) {
+      transform: rotate(90deg);
+    }
+
+    .bg-square:nth-child(4n + 1) {
+      transform: rotate(180deg);
+    }
+  }
+
+  .cell.hasBlock {
+    border-radius: 10%;
+  }
+
+  & .view-1 {
+    transform: rotate(180deg);
+
+    & .players {
+      & .player {
+        img {
+          transform: rotate(180deg);
+        }
+      }
+    }
+
+    & .grid {
+      & .square.hasBlock, & .canMove-2, & .empty.block {
+        transform: rotate(180deg) !important;
+      }
+    }
+  }
+
+
+  & .view-1 {
+    & .players {
+      & .player {
+        img {
+          transform: rotate(180deg);
+        }
+      }
+    }
+
+    & .grid {
+      & .square.hasBlock, & .canMove-2, & .empty.block {
+        transform: rotate(180deg) !important;
+      }
+    }
+  }
+
+  & .view-2 {
+    transform: rotate(-90deg);
+
+    & .players {
+      & .player {
+        img {
+          transform: rotate(90deg);
+        }
+      }
+    }
+
+    & .grid {
+      & .square.hasBlock {
+        transform: rotate(90deg) !important;
+      }
+
+      & .canMove-3 {
+        transform: rotate(90deg) !important;
+      }
+
+      & .empty.block {
+        // transform: rotate(180deg) !important;
+      }
+    }
+  }
+
+  & .view-3 {
+    transform: rotate(90deg);
+
+    & .players {
+      & .player {
+        img {
+          transform: rotate(-90deg);
+        }
+      }
+    }
+
+    & .grid {
+      & .square.hasBlock {
+        transform: rotate(-90deg) !important;
+      }
+
+      & .canMove-4 {
+        transform: rotate(-90deg) !important;
+      }
+
+      & .empty.block {
+        // transform: rotate(180deg) !important;
+      }
+    }
+  }
+
+
+  .grid {
+
+    .canMove-1,
+    .canMove-2,
+    .canMove-3,
+    .canMove-4 {
+      opacity: 0.6;
+      background-size: 80% 80% !important;
+      background-repeat: no-repeat;
+    }
+
+    .canMove-1 {
+      background-image: url('../../public/images/players/player-1.png');
+    }
+
+    .canMove-2 {
+      background-image: url('../../public/images/players/player-2.png');
+    }
+
+    .canMove-3 {
+      background-image: url('../../public/images/players/player-3.png');
+    }
+
+    .canMove-4 {
+      background-image: url('../../public/images/players/player-4.png');
+    }
+
+  }
+
+  .game-container {
+    position: relative;
+    padding: 10px;
+    border-radius: .5rem;
+    width: fit-content;
+    margin: auto;
+
+    .grid {
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+
+
+      .square {
+        background-position: center;
+        background-size: cover;
+      }
+    }
+
+    .players {
+
+      .player {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        z-index: 9999;
+
+        .playerImg {
+          z-index: 9999;
+          width: 40px;
+          height: 40px;
+        }
+      }
+
+      .finish-1,
+      .finish-2,
+      .finish-3,
+      .finish-4 {
+        position: absolute;
+        display: none;
+      }
+
+      .finish-1 {
+        background-image: url('../../public/images/players/player-1.png');
+        width: 98%;
+        height: 50px;
+        top: -55px;
+        left: 5px;
+        background-position-x: 1px;
+      }
+
+      .finish-2 {
+        background-image: url('../../public/images/players/player-2.png');
+        width: 98%;
+        height: 50px;
+        bottom: -48px;
+        left: 5px;
+        background-position-x: 1px;
+      }
+
+      .finish-3 {
+        background-image: url('../../public/images/players/player-3.png');
+        height: 98%;
+        width: 45px;
+        right: -50px;
+        top: 5px;
+      }
+
+      .finish-4 {
+        background-image: url('../../public/images/players/player-4.png');
+        height: 98%;
+        width: 45px;
+        left: -50px;
+        top: 5px;
+      }
+    }
+
+    .cell,
+    .bg-square {
+      width: 40px;
+      height: 40px;
+      transition: 0.2s ease-in;
+    }
+
+    .row:nth-child(even) .bg-cell,
+    .row:nth-child(even) .cell {
+      height: 10px;
+    }
+
+    .row .bg-cell:nth-child(even),
+    .row .cell:nth-child(even) {
+      width: 10px;
+    }
+
+    .row {
+      display: flex;
+    }
+  }
+}
+
+.game-info {
+  grid-area: left-one;
+  text-align: right;
+  margin-left: -1rem;
+  width: fit-content;
+  padding-left: 1rem;
+
+  .glass-box {
+    border-bottom-left-radius: 0;
+    border-top-left-radius: 0;
+  }
+
+  .all-stats {
+    width: auto;
+    color: var(--color-light);
+  }
+}

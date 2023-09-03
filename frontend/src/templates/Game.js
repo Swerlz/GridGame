@@ -1,427 +1,123 @@
 import React, { useEffect, useState } from 'react';
-import Players from './Players';
+import GameInfo from './GameInfo';
 import socket from '../socket';
+import Grid from './Grid';
+import { motion, AnimatePresence } from 'framer-motion';
+import '../css/game.scss';
 
-const Game = ({ player, initialRoom, mainRoomUpdate }) => {
-  const [room, setRoom] = useState(initialRoom);
-  const [hoverData, sethoverData] = useState(null);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const gridData = Array.from({ length: room.settings.gridSize }, () =>
-    Array.from({ length: room.settings.gridSize }, () => 'empty')
-  );
-
-  // useEffect(() => {
-  //   const handleKeyPress = (event) => {
-  //     if (room.turn.id === player.id && !room.winner) {
-  //       const foundPlayer = getPlayer(player.id);
-
-  //       if (foundPlayer) {
-  //         const { row, col } = foundPlayer;
-  //         let updatedPlayers;
-
-  //         setErrorMsg('');
-
-  //         switch (event.key) {
-  //           case 'ArrowUp':
-  //             updatedPlayers = movePlayer(row, col, -2, 0);
-  //             break;
-  //           case 'ArrowDown':
-  //             updatedPlayers = movePlayer(row, col, +2, 0);
-  //             break;
-  //           case 'ArrowLeft':
-  //             updatedPlayers = movePlayer(row, col, 0, -2);
-  //             break;
-  //           case 'ArrowRight':
-  //             updatedPlayers = movePlayer(row, col, 0, +2);
-  //             break;
-  //           default:
-  //             break;
-  //         }
-
-  //         if ('Winner' === updatedPlayers) {
-  //           socket.emit('playerWon', room.id, foundPlayer);
-  //           window.removeEventListener('keydown', handleKeyPress);
-  //         } else if (updatedPlayers) {
-  //           console.log(updatedPlayers);
-  //           socket.emit('playerMove', room.id, updatedPlayers, player.id);
-  //           window.removeEventListener('keydown', handleKeyPress);
-  //         }
-  //       }
-  //     }
-  //   };
-
-  //   window.addEventListener('keydown', handleKeyPress);
-
-  //   return () => {
-  //     window.removeEventListener('keydown', handleKeyPress);
-  //   };
-  //   // eslint-disable-next-line
-  // }, [room]);
-
-  // playerPos = ['0000]
-  // grid = ['0000', '0002', '0004', 0200, 0400, ];
-  // blocks = [0100]
+const Game = ({ playerID, roomID, curTheme, newAlert, setStatus }) => {
+  const [room, setRoom] = useState(null);
+  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [isLeavingGame, setIsLeavingGame] = useState(false);
+  const [playerTurn, setPlayerTurn] = useState(false);
 
   useEffect(() => {
+    socket.emit('getRoom', roomID);
+
     socket.on('roomUpdated', (updatedRoom) => {
-      if (updatedRoom.status === 'inLobby') {
-        mainRoomUpdate(updatedRoom);
-      } else {
-        if (updatedRoom.winner) {
-          if (updatedRoom.winner.id === player.id) {
-            setErrorMsg('no problems, you won. idiot');
-          } else {
-            setErrorMsg('you lost, idiot.')
-          }
+      setPlayerTurn(false);
+      const theRoom = updatedRoom.newRoom;
+
+      setRoom(theRoom);
+
+      if (theRoom.winner) {
+        if (theRoom.winner.id === playerID) {
+          newAlert('You have won!', 'success');
+        } else {
+          newAlert('You have lost! :(', 'danger');
         }
+      } else {
+        setCurrentPlayer(theRoom.players.find(p => p.id === playerID));
 
-        console.log('roomUpdates');
-
-        setRoom(updatedRoom);
+        if (theRoom.turn.id === playerID) {
+          setPlayerTurn(true);
+        }
       }
     });
 
-    socket.on('startGame', (gameRoom) => {
-      setRoom(gameRoom);
+    socket.on('fromGame', () => {
+      setIsLeavingGame(true);
+
+      setTimeout(() => {
+        setStatus('inRoom');
+        newAlert('Back to Room.', 'warning');
+      }, 300);
     });
 
     return () => {
       socket.off('roomUpdated');
-      socket.off('startGame');
+      socket.off('fromGame');
     };
     // eslint-disable-next-line
   }, []);
 
-  const getPlayer = () => {
-    return room.players.find(p => p.id === player.id);
-  }
-
-  function collisionGrid(row, col) {
-    return (row < 0 || row > room.settings.gridSize) || (col < 0 || col > room.settings.gridSize);
-  }
-
-  function collisionWinner(row, col) {
-    const foundPlayer = getPlayer(player.id);
-
-    const [winLane, winSideStr] = foundPlayer.winLane.split('-');
-    const winSide = parseInt(winSideStr);
-
-    if (winLane === 'row') {
-      return winSide === 0 ? row < winSide : row > winSide;
-    } else {
-      return winSide === 0 ? col < winSide : col > winSide;
-    }
-  }
-
-  function collisionWall(row, col) {
-    let blockFound = false;
-
-    if (room.blocks.length > 0) {
-      room.blocks.forEach((block) => {
-        if (block.row === row && block.col === col) {
-          blockFound = true;
-        }
-      });
-    }
-
-    return blockFound;
-  }
-
-  function collisionPlayer(row, col) {
-    let playerFound = false;
-
-    room.players.forEach((player) => {
-      if (player.row === row && player.col === col) {
-        playerFound = true;
-      }
-    });
-
-    return playerFound;
-  }
-
-  function movePlayer(row, col, rowOffset, colOffset) {
-    let blockX, blockY;
-
-    blockX = col + (rowOffset === 0 ? (colOffset > 0 ? colOffset - 1 : colOffset + 1) : 0);
-    blockY = row + (colOffset === 0 ? (rowOffset > 0 ? rowOffset - 1 : rowOffset + 1) : 0);
-
-    const checkW = collisionWinner(+row + rowOffset, +col + colOffset);
-    if (checkW) {
-      return 'Winner';
-    } else {
-      const checkB = collisionWall(blockY, blockX);
-      const checkP = collisionPlayer(+row + rowOffset, +col + colOffset);
-      const checkG = collisionGrid(+row + rowOffset, +col + colOffset);
-
-      if (room.settings.jumpActive && checkB && !checkP) {
-        return room.players.map(p => {
-          if (p.id === player.id) {
-            p.row += rowOffset;
-            p.col += colOffset;
-            p.delay = room.settings.jumpDelay;
-          }
-          return p;
-        });
-      } else {
-        if (checkB || checkP || checkG) {
-          setErrorMsg(`You cannot move there, idiot.`);
-          return false;
-        } else {
-          return room.players.map(p => {
-            if (p.id === player.id) {
-              p.row += rowOffset;
-              p.col += colOffset;
-            }
-            return p;
-          });
-        }
-      }
-    }
-  }
-
-  const isPlayersBoxed = () => {
-    const players = room.players;
-
-    for (const player of players) {
-      const { row, col } = player;
-
-      const leftDiv = document.querySelector(`div[data-row="${row}"][data-col="${col - 1}"]`);
-      const rightDiv = document.querySelector(`div[data-row="${row}"][data-col="${col + 1}"]`);
-      const topDiv = document.querySelector(`div[data-row="${row - 1}"][data-col="${col}"]`);
-      const bottomDiv = document.querySelector(`div[data-row="${row + 1}"][data-col="${col}"]`);
-
-      const isLeftBlocked = leftDiv && leftDiv.classList.contains('hasBlock');
-      const isRightBlocked = rightDiv && rightDiv.classList.contains('hasBlock');
-      const isTopBlocked = topDiv && topDiv.classList.contains('hasBlock');
-      const isBottomBlocked = bottomDiv && bottomDiv.classList.contains('hasBlock');
-
-      if (isLeftBlocked && isRightBlocked && isTopBlocked && isBottomBlocked) {
-        return true
-      }
-    }
-
-    return false
+  const returnToRoom = () => {
+    socket.emit('backToRoom', roomID);
   };
 
-  const isPathBlocked = (row, col) => {
-    const elements = hoverData.axis === 'clientX' ? document.querySelectorAll(`div[data-row="${row}"] .block`) : document.querySelectorAll(`.block-vert[data-col="${col}"]`);
-    const cells = elements.length;
-    let isBlocked = 0;
-
-    for (const element of elements) {
-      if (element.classList.contains('hasBlock')) {
-        isBlocked++
-      }
-    }
-
-    return (cells - isBlocked) > 2 ? false : true;
-  }
-
-  const placeBlock = () => {
-    if (hoverData && !room.winner) {
-      const first = hoverData.divs[0];
-      const firstRow = first.dataset.row;
-      const firstCol = first.dataset.col;
-
-      const playerBlocked = isPlayersBoxed();
-      const pathBlocked = isPathBlocked(firstRow, firstCol);
-
-      if (!playerBlocked) {
-        if (!pathBlocked) {
-          let allBlocks = [...room.blocks];
-
-          hoverData.divs.forEach((div, key) => {
-            if (div && !div.classList.contains('hasBlock')) {
-              allBlocks.push({ row: parseInt(div.dataset.row), col: parseInt(div.dataset.col) });
-            }
-          });
-
-          socket.emit('addBlocks', room.id, allBlocks, player.id);
-        } else {
-          setErrorMsg('You cannot block the path! Idiot.');
-        }
-      } else {
-        setErrorMsg('You cannot block a player! Idiot.');
-      }
-    }
-  }
-
-  const handleEnter = (e) => {
-    const currentHover = e.target;
-    const currentPlayer = getPlayer();
-
-    if (currentPlayer && currentPlayer.blocks > 0 && room.turn.id === player.id && !room.winner) {
-      setTimeout(() => {
-        if (currentHover.matches(':hover')) {
-          const isHorizontal = currentHover.classList.contains('block');
-          const axis = isHorizontal ? 'clientX' : 'clientY';
-          const rect = currentHover.getBoundingClientRect();
-          const rectPos = isHorizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
-          const currentCol = parseInt(currentHover.dataset.col);
-          const currentRow = parseInt(currentHover.dataset.row);
-          const direction = e[axis] > rectPos ? 'right' : 'left';
-
-          const getDiv = (row, col) => document.querySelector(`div[data-row="${row}"][data-col="${col}"]`);
-
-          let divs = [currentHover];
-          let newCols = [];
-          let colsArr = [];
-
-          newCols.push({ row: currentRow, col: currentCol });
-
-          if (isHorizontal) {
-            if ('right' === direction) {
-              divs.push(getDiv(currentRow, +currentCol + 2))
-              newCols.push({ row: currentRow, col: +currentCol + 2 });
-            } else {
-              divs.push(getDiv(currentRow, currentCol - 2))
-              newCols.push({ row: currentRow, col: currentCol - 2 });
-            }
-
-            const arr = [...room.blocks, ...newCols];
-
-            arr.filter((v, k) => {
-              if (v.row === currentRow) {
-                colsArr.push(v.col);
-              }
-            })
-
-            colsArr.sort((a, b) => a - b);
-
-            for (let i = 0; i < colsArr.length - 1; i++) {
-              if (colsArr[i] + 2 === colsArr[i + 1]) {
-                divs.push(getDiv(currentRow, colsArr[i] + 1));
-              }
-            }
-          } else {
-            if ('right' === direction) {
-              divs.push(getDiv(+currentRow + 2, currentCol))
-              newCols.push({ row: +currentRow + 2, col: currentCol });
-            } else {
-              divs.push(getDiv(currentRow - 2, currentCol))
-              newCols.push({ row: currentRow - 2, col: currentCol });
-            }
-
-            const arr = [...room.blocks, ...newCols];
-
-            arr.filter((v, k) => {
-              if (v.col === currentCol) {
-                colsArr.push(v.row);
-              }
-            })
-
-            colsArr.sort((a, b) => a - b);
-
-            for (let i = 0; i < colsArr.length - 1; i++) {
-              if (colsArr[i] + 2 === colsArr[i + 1]) {
-                divs.push(getDiv(colsArr[i] + 1, currentCol));
-              }
-            };
-          }
-
-          currentHover.classList.add('blockHover');
-
-          divs.forEach(v => {
-            if (v) {
-              v.classList.add('blockHover')
-            }
-          });
-
-          const data = { divs, direction, axis };
-
-          sethoverData(data);
-        }
-      }, 100);
-    }
-  };
-
-  const handleLeave = () => {
-    if (hoverData) {
-
-      hoverData.divs.forEach((div) => {
-        if (div) {
-          div.classList.remove('blockHover');
-        }
-      });
-
-      sethoverData(null);
-    }
+  const handlePlayerAction = (action, updatedPlayers, foundPlayer) => {
+    socket.emit(action, room.id, updatedPlayers, foundPlayer);
   };
 
   return (
-    <div>
-      <div>Problems: {errorMsg}</div>
-      <div>
-        <h4>Players</h4>
-        <ul>
-          {room.players.map((p, index) => {
-            return <li key={p.id} className={`turn${index + 1}`}>{p.name} - {p.name === room.turn.name ? 'your turn, idiot' : ''}</li>
-          })}
-        </ul>
-      </div>
-      <div className="game-container">
-        <Players room={room} />
-        <div className="grid">
-          {gridData.map((row, rowIndex) => (
-            <div key={rowIndex} className={`row ${rowIndex % 2 !== 0 ? 'block-row' : 'square-row'}`} data-row={rowIndex}>
-              {row.map((cell, colIndex) => {
-                let classNames = `cell ${cell}`;
-                let mouseEv = false;
-                let hasBlock = false;
-
-                if (rowIndex % 2 === 1) {
-                  if (colIndex % 2 === 0) {
-                    classNames += ' block';
-                    mouseEv = true;
-                  } else {
-                    classNames += ' block-mid';
-                  }
-                } else {
-                  if (colIndex % 2 !== 0) {
-                    classNames += ' block-vert';
-                    mouseEv = true;
-                  } else {
-                    classNames += ' square';
-                  }
+    <>
+      {room && (
+        <AnimatePresence>
+          {!isLeavingGame && (
+            <motion.div
+              className='area game'
+              initial={{ x: 1300 }}
+              animate={{
+                x: 0, transition: {
+                  delay: .4,
+                  duration: .3,
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 20,
                 }
+              }}
+              exit={{ x: 1300 }}
+            >
+              <div className={`js-theme glass-box game-bg-${curTheme}`} data-theme='grid'>
+                {playerTurn && ( <div className='game-turn'><h3>Your Turn.</h3></div>)}
+                <Grid room={room} playerID={playerID} handlePlayerAction={handlePlayerAction} newAlert={newAlert} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
-                for (const roomBlock of room.blocks) {
-                  const split = roomBlock.split("-");
-                  if (rowIndex == split[0] && colIndex == split[1]) {
-                    hasBlock = true;
-                    break;
-                  }
-                }
+      {currentPlayer && (
+        <AnimatePresence>
+          {!isLeavingGame && (
+            <motion.div
+              className='area game-info self-top'
+              initial={{ x: -400 }}
+              animate={{
+                x: 0, transition: {
+                  duration: 0.3,
+                  delay: .1,
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 20,
+                },
+              }}
+              exit={{ x: -400 }}
+            >
+              <div className='glass-box'>
+                <GameInfo currentPlayer={currentPlayer} />
 
-                if (hasBlock) {
-                  classNames += ' hasBlock';
-                }
-
-                return (
-                  <div
-                    key={rowIndex + colIndex}
-                    className={classNames}
-                    data-row={rowIndex}
-                    data-col={colIndex}
-                    onMouseEnter={mouseEv && !hasBlock ? handleEnter : undefined}
-                    onMouseLeave={mouseEv && !hasBlock ? handleLeave : undefined}
-                    onClick={mouseEv && !hasBlock ? placeBlock : undefined}
-                  ></div>
-                );
-              })}
-
-            </div>
-          ))}
-        </div>
-      </div>
-        {room.winner && room.admin.id === player.id ? (
-          <div>
-            <button onClick={() => { socket.emit('roomStatus', room.id, 'inLobby') }}>Lobby</button>
-            <button onClick={() => { socket.emit('startGame', room) }}>Play Again</button>
-          </div>
-        ) : null}
-    </div>
+                {room && room.admin.id === playerID && (
+                  <div className='mt-2'>
+                    <button data-id={room.id} onClick={returnToRoom}>Lobby</button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
+    </>
   );
 };
 

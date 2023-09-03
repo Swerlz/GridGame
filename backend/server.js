@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { error } = require('console');
 const cors = require('cors');
 
 const express = require('express');
@@ -8,7 +9,6 @@ const http = require('http').createServer(express);
 
 const FRONTEND_URL = process.env.REACT_APP_ENV === 'production' ? process.env.REACT_APP_FRONT_PROD_URL : process.env.REACT_APP_FRONT_DEV_URL;
 const PORT = process.env.REACT_APP_PORT || 5000;
-
 
 const corsOptions = {
   origin: FRONTEND_URL,
@@ -35,8 +35,24 @@ function emitRoomUpdate(id, updatedRoom) {
   io.in(id).emit('roomUpdated', updatedRoom);
 }
 
+function emitMainRoomUpdate(id, updatedRoom) {
+  io.in(id).emit('mainRoomUpdated', updatedRoom);
+}
+
+function emitStartGame(id, startRoom) {
+  io.in(id).emit('startGame', startRoom);
+}
+
+function emitError(id, errorMsg) {
+  io.in(id).emit('roomError', errorMsg);
+}
+
 function emitSettingsUpdate(id, updatedRoom) {
   io.in(id).emit('settingsUpdate', updatedRoom);
+}
+
+function emitBackToRoom(roomID) {
+  io.in(roomID).emit('fromGame');
 }
 
 function updateRooms(updatedRoom) {
@@ -55,16 +71,15 @@ async function removeAllFromRoom(roomID) {
   const roomSockets = await io.in(roomID).fetchSockets();
 
   roomSockets.forEach(socket => {
-    socket.emit('roomUpdated', null);
+    socket.emit('removeAll');
     socket.leave(roomID);
-    socket.join('lobby');
   });
 
   removeRoom(roomID);
-  lobbyUpdate();
 }
 
 function removePlayerFromRoom(room, playerSocket) {
+  const playerName = room.players.find(player => player.id === playerSocket.id);
   const updatedRoom = {
     ...room,
     players: room.players.filter((player) => player.id !== playerSocket.id)
@@ -72,41 +87,44 @@ function removePlayerFromRoom(room, playerSocket) {
 
   updateRooms(updatedRoom)
 
-  playerSocket.leave(room.id);
-  playerSocket.join('lobby');
+  const roomAlert = { message: `${playerName.name} left the room.`, style: 'warning' };
+  const roomAll = { newRoom: updatedRoom, alert: roomAlert };
 
-  playerSocket.emit('roomUpdated', null);
-  io.in(room.id).emit('roomUpdated', updatedRoom);
+  playerSocket.leave(room.id);
+  playerSocket.emit('leaveRoom', room.name);
+
+  io.in(room.id).emit('roomUpdated', roomAll);
 }
 
 function updateStartingPosition(room) {
-  var isRandom = room.settings.randomStart;
-  const gridSize = room.settings.gridSize;
+  const randomStart = room.settings.randomStart;
+  const gridSize = room.settings.gridSize - 1;
+  room.playersPos = [];
 
   room.players.forEach((player, index) => {
     let row, col, winLane;
 
     if (index === 0) {
-      col = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2; 
-      row = gridSize - 1;
+      col = randomStart ? getRandomEvenNumber(0, gridSize) : gridSize / 2;
+      row = gridSize;
       winLane = 'row-0';
     } else if (index === 1) {
       row = 0;
-      col = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
+      col = randomStart ? getRandomEvenNumber(0, gridSize) : gridSize / 2;
       winLane = 'row-' + gridSize;
     } else if (index === 2) {
-      row = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
+      row = randomStart ? getRandomEvenNumber(0, gridSize) : gridSize / 2;
       col = 0;
       winLane = 'col-' + gridSize;
     } else {
-      row = isRandom ? Math.floor(Math.random() * (gridSize - 1)) : (gridSize - 1) / 2;
-      col = gridSize - 1;
+      row = randomStart ? getRandomEvenNumber(0, gridSize) : gridSize / 2;
+      col = gridSize;
       winLane = 'col-0';
     }
 
     player.winLane = winLane;
-    player.row = row;
-    player.col = col;
+    player.playerPos = row + '-' + col;
+    room.playersPos.push(row + '-' + col);
   });
 
   return room;
@@ -121,6 +139,14 @@ function updateNextPlayer(roomFound, currentPlayerID) {
   }
 
   const nextPlayer = roomFound.players[nextPlayerIndex];
+
+  if (roomFound.settings.moveDiagonal && nextPlayer.moveDiagonalDelay > 0) {
+    nextPlayer.moveDiagonalDelay--;
+  }
+
+  if (roomFound.settings.doubleJump && nextPlayer.doubleJumpDelay > 0) {
+    nextPlayer.doubleJumpDelay--;
+  }
 
   if (nextPlayer.delay > 0) {
     nextPlayer.delay--;
@@ -143,70 +169,148 @@ function getRandomOddNumber(min, max) {
 function getRandomEvenNumber(min, max) {
   const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
   return randomNumber % 2 !== 0 ? randomNumber + 1 : randomNumber;
-}  
+}
 
 function getRandomNumber(max) {
-  return randomNumber = Math.floor(Math.random() * (max - 1));
+  return Math.floor(Math.random() * (max - 1));
+}
+
+function setRandomBlocks(randomBlocks, randomPlayerBlocks, gridSize) {
+  let randomArray = [];
+
+  if (randomBlocks > 0) {
+    for (let i = 0; i < randomBlocks; i++) {
+      let row = getRandomNumber(gridSize);
+      let col;
+
+      if (row % 2 === 0) {
+        col = getRandomOddNumber(0, gridSize);
+      } else {
+        col = getRandomEvenNumber(0, gridSize);
+      }
+
+      randomArray.push(row + '-' + col);
+    }
+  }
+
+  if (randomPlayerBlocks > 0) {
+    for (let i = 0; i < randomPlayerBlocks; i++) {
+      let row = getRandomEvenNumber(0, gridSize);
+      let col = getRandomEvenNumber(0, gridSize);
+
+      randomArray.push(row + '-' + col);
+    }
+  }
+
+  return randomArray;
 }
 
 io.on('connection', (socket) => {
-  
+
   socket.on('newPlayer', (player) => {
     player.id = socket.id;
 
-    socket.join('lobby');
-    socket.emit('playerAdded', player);
+    socket.emit('newPlayer', player);
   });
+
+  socket.on('changeName', player => {
+
+  });
+
+  socket.on('getRoom', (roomID) => {
+    roomFound = findRoom(roomID);
+
+    if (roomFound) {
+
+      const alert = { message: ``, style: 'success' };
+      const updatedRoom = { newRoom: roomFound, alert };
+
+      emitRoomUpdate(roomFound.id, updatedRoom);
+    } else {
+      emitError(roomID, { message: 'getRoom Error', style: 'danger' });
+    }
+  })
 
   socket.on('createRoom', (newRoom) => {
     rooms.push(newRoom);
 
-    socket.leave('lobby');
     socket.join(newRoom.id);
-    socket.emit('roomUpdated', newRoom);
-
-    lobbyUpdate();
+    socket.emit('roomCreated', newRoom.id);
   });
 
-  socket.on('getRooms', () => {
+  socket.on('updateLobby', () => {
     socket.emit('lobbyUpdate', rooms);
   });
 
   socket.on('joinRoom', (id, player) => {
     const targetRoom = findRoom(id);
 
-    if (targetRoom && targetRoom.players.length < 4) {
+    if (targetRoom ) {
+      
+      if (targetRoom.players.length < 4 && targetRoom.status === 'inRoom') {
       targetRoom.players.push(player);
 
       updateRooms(targetRoom);
 
+      const alert = { message: `${player.name} joined the room.`, style: 'success' };
+      const updatedRoom = { newRoom: targetRoom, alert };
+
+      emitRoomUpdate(id, updatedRoom);
+
       socket.leave('lobby');
       socket.join(id);
+      socket.emit('joinedRoom', targetRoom.id);
+      } else {
+        // Room Full.
+        let alert = '';
+        if (targetRoom.players.length === 4) {
+          alert = 'Room is full.';
+        }
+        if (targetRoom.status === 'inGame') {
+          alert = 'Game has started.';
+        }
 
-      emitRoomUpdate(id, targetRoom);
+        const newAlert = {alert, style: 'danger'};
+
+        socket.emit('alert', newAlert);
+      }
+    } else {
+      // Room Full.
+      let alert = 'Room not found.';
+
+      const newAlert = {alert, style: 'danger'};
+
+      socket.emit('alert', newAlert);
     }
   });
 
-  socket.on('playerMove', (roomID, updatedPlayers, currentPlayerID) => {
+  socket.on('playerMove', (roomID, updatedPlayers, foundPlayer) => {
     const roomFound = findRoom(roomID);
 
     if (roomFound) {
       roomFound.players = updatedPlayers;
 
-      updateNextPlayer(roomFound, currentPlayerID);
+      updateNextPlayer(roomFound, foundPlayer);
 
-      emitRoomUpdate(roomID, roomFound);
+      // emitRoomUpdate(roomID, roomFound);
+      const alert = { message: `Player moved.`, style: 'warning' };
+      const newRoom = { newRoom: roomFound, alert };
+
+      emitRoomUpdate(roomID, newRoom);
     }
   });
 
-  socket.on('playerWon', (roomID, player) => {
+  socket.on('playerWon', (roomID, updatedPlayers, foundPlayer) => {
     const roomFound = findRoom(roomID);
 
     if (roomFound) {
-      roomFound.winner = player;
+      roomFound.winner = foundPlayer;
+      roomFound.players = updatedPlayers;
 
-      updateRooms(roomFound);
-      emitRoomUpdate(roomFound.id, roomFound)
+      const newAlert = { message: ``, style: 'success' };
+      const newRoom = { newRoom: roomFound, alert: newAlert };
+
+      emitRoomUpdate(roomID, newRoom);
     }
   });
 
@@ -222,81 +326,77 @@ io.on('connection', (socket) => {
 
       updateNextPlayer(roomFound, currentPlayerID);
 
-      emitRoomUpdate(roomID, roomFound);
-    }
-  });
+      const newAlert = { message: `A block was placed.`, style: 'warning' };
+      const newRoom = { newRoom: roomFound, alert: newAlert };
 
-  socket.on('roomStatus', (roomID, status) => {
-    const roomFound = findRoom(roomID);
-
-    if (roomFound) {
-      roomFound.status = status;
-
-      updateRooms(roomFound);
-      emitRoomUpdate(roomFound.id, roomFound)
+      emitRoomUpdate(roomID, newRoom);
     }
   });
 
   socket.on('updateSettings', (roomID, settings) => {
-    emitSettingsUpdate(roomID, settings);
-  });
+    const roomFound = findRoom(roomID);
 
-  socket.on('leaveRoom', (room, playerID) => {
-    if (isRoomAdmin(room.admin.id, playerID)) {
-      removeAllFromRoom(room.id);
-    } else {
-      removePlayerFromRoom(room, socket);
+    if (roomFound) {
+      roomFound.settings = settings;
+
+      updateRooms(roomFound);
+
+      emitSettingsUpdate(roomFound.id, roomFound)
     }
   });
 
-  function setRandomBlocks(randomBlocks, randomPlayerBlocks, gridSize) {
-    let randomArray = [];
-    
-    if (randomBlocks > 0) {
-      for (let i = 0; i < randomBlocks; i++) {
-        let row = getRandomNumber(gridSize);
-        let col;
+  socket.on('leaveRoom', (roomID, playerID) => {
+    const roomFound = findRoom(roomID);
 
-        if (row % 2 === 0) {
-          col = getRandomOddNumber(0, gridSize);
-        } else {
-          col = getRandomEvenNumber(0, gridSize);
-        }
-
-        randomArray.push(row.toString() + '-' + col.toString());
-      }
-    } 
-    
-    if (randomPlayerBlocks > 0) {
-      for (let i = 0; i < randomPlayerBlocks; i++) {
-        let row = getRandomEvenNumber(0, gridSize);
-        let col = getRandomEvenNumber(0, gridSize);
-
-        randomArray.push(row.toString() + '-' + col.toString());
+    if (roomFound) {
+      if (isRoomAdmin(roomFound.admin.id, playerID)) {
+        removeAllFromRoom(roomFound.id);
+      } else {
+        removePlayerFromRoom(roomFound, socket);
       }
     }
+  });
 
-    return randomArray;
-  }
+  socket.on('backToRoom', (roomID) => {
+    const roomFound = findRoom(roomID);
 
-  socket.on('startGame', (room) => {
+    if (roomFound) {
+      roomFound.status = 'inRoom'
+
+      emitBackToRoom(roomFound.id)
+    }
+  });
+
+  socket.on('serverStartGame', (roomID) => {
+    let room = findRoom(roomID);
     const randomPlayer = getRandomPlayer(room.players);
 
-    room.players.map((val, key) => { 
-      val.blocks = room.settings.maxBlocks; 
-      val.delay = 0;
+    room.players.map(p => {
+      p.blocks = room.settings.maxBlocks;
+
+      if (room.settings.wallJump) {
+        p.delay = room.settings.wallJumpDelay;
+      }
+
+      if (room.settings.doubleJump) {
+        p.doubleJumpDelay =  0;
+      }
+
+      if (room.settings.moveDiagonal) {
+        p.moveDiagonalDelay =  0;
+      }
     });
 
     room.winner = null;
-    room.turn.name = randomPlayer.name;
-    room.turn.id = randomPlayer.id;
     room.blocks = setRandomBlocks(room.settings.randomBlocks, room.settings.randomPlayerBlocks, room.settings.gridSize - 1);
     room.status = 'inGame';
     room = updateStartingPosition(room);
 
+    room.turn = randomPlayer;
+
     updateRooms(room);
 
-    io.in(room.id).emit('startGame', room);
+    io.in(room.id).emit('clientStartGame', room);
   });
 
   socket.on('disconnect', () => {
@@ -306,7 +406,6 @@ io.on('connection', (socket) => {
           removeAllFromRoom(room.id);
         } else {
           removePlayerFromRoom(room, socket);
-          socket.emit('roomUpdate', null);
         }
 
         return false;

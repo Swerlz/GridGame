@@ -1,141 +1,146 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import socket from '../socket';
+import Settings from './Settings';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const Room = ({ room, theplayer, leaveRoom, startGame }) => {
-  const [settings, setSettings] = useState({
-    gridSize: 17,
-    maxBlocks: 6,
-    jumpActive: false,
-    jumpDelay: 2,
-    randomStart: false,
-    randomBlocks: 0,
-    randomPlayerBlocks: 0,
-  })
+const Room = ({ roomID, player, newAlert, setStatus }) => {
+  const [newRoom, setNewRoom] = useState(null);
+  const [roomSettings, setRoomSettings] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLeavingRoom, setIsLeavingRoom] = useState(false); // New state for controlling exit animations
 
   useEffect(() => {
-    socket.on('settingsUpdate', (updatedSettings) => {
-      setSettings(updatedSettings);
+    socket.emit('getRoom', roomID);
+  }, [roomID])
+
+  useEffect(() => {
+    socket.on('roomUpdated', (updatedRoom) => {
+      if (updatedRoom.newRoom.admin.id === player.id) {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
+
+      setRoomSettings(updatedRoom.newRoom.settings);
+      setNewRoom(updatedRoom.newRoom);
+
+      if (updatedRoom.alert.message.length > 0) {
+        newAlert(updatedRoom.alert.message, updatedRoom.alert.style);
+      }
+    });
+    
+    socket.on('clientStartGame', () => {
+      setIsLeavingRoom(true);
+
+      setTimeout(() => {
+        setStatus('inGame');
+      }, 300);
     });
 
 
     return () => {
-      socket.off('settingsUpdate');
+      socket.off('roomUpdated');
+      socket.off('clientStartGame')
     };
-  }, [settings]);
-
-  const gridOptions = [13, 17, 21, 25];
-
-  if (!room || room.length === 0) {
-    return <div>Loading...</div>;
-  }
-
+  }, []);
 
   const handleStartGame = () => {
-    startGame(settings);
-  };
-
-  const saveSettings = () => {
-    console.log(settings);
-    socket.emit('updateSettings', room.id, settings);
+    socket.emit('serverStartGame', roomID);
   }
+
+  const leaveRoom = () => {
+    setIsLeavingRoom(true);
+
+    setTimeout(() => {
+      socket.emit('leaveRoom', roomID, player.id);
+    }, 300);
+  };
 
   return (
     <>
-      <h2>Room Name: {room.name}</h2>
+      {newRoom && (
+        <AnimatePresence>
+          {!isLeavingRoom && (
+            <motion.div
+              className='area room'
+              initial={{ x: -400 }}
+              animate={{
+                x: 0, transition: {
+                  duration: 0.3,
+                  delay: .1,
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 20,
+                },
+              }}
+              exit={{ x: -400 }}
+            >
+              <div className='glass-box'>
+                <div className='room-box'>
+                  <div className='room-each'>
+                    <h6>Room Name:</h6>
+                    <h5 className=''>{newRoom.name}</h5>
+                  </div>
 
+                  <div className='room-each'>
+                    <h6>Room Admin:</h6>
+                    <h5>{newRoom.admin.name}</h5>
+                  </div>
 
-      <div>
-        <h2>Settings</h2>
-        <div>
-          <h4>Grid Size</h4>
-          <div>
-            {gridOptions.map((option) => (
-              <p
-                key={option}
-                onClick={theplayer.id === room.admin.id ? (prev) => setSettings({ ...settings, gridSize: option }) : null}
-                className={settings.gridSize === option ? 'activeSetting' : ''}
-              >
-                {option}
-              </p>
-            ))}
-          </div>
-        </div>
+                  <div className='room-each'>
+                    <h6>Room Status:</h6>
+                    <h5>{newRoom.status}</h5>
+                  </div>
 
-        <div>
-          <h4>Max Wall Blocks</h4>
-          <input
-            type="number"
-            value={settings.maxBlocks}
-            onChange={(e) => setSettings({ ...settings, maxBlocks: parseInt(e.target.value) })}
-          />
-        </div>
+                  <div className='room-each'>
+                    <h6>Room Players:</h6>
+                    <h5>{newRoom.players.length}/4</h5>
+                  </div>
 
-        <div>
-          <h4>Wall Jump Delay</h4>
-          <input
-            type="number"
-            value={settings.jumpDelay}
-            onChange={(e) => setSettings({ ...settings, jumpDelay: parseInt(e.target.value, 10) })}
-          />
-        </div>
+                  <div className='room-players'>
+                    <ul>
+                      {newRoom.players.map((player, index) => (
+                        <li key={player.id} className={`each-player`}>
+                          <h5>{player.name}</h5>
+                          <img src={`/images/players/player-${index + 1}.png`} className='player-img'></img>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-        <div>
-          <h4>Enable Wall Jump</h4>
-          <input type='checkbox'
-            id="jump"
-            name="jump"
-            checked={settings.jumpActive}
-            onChange={() => setSettings({ ...settings, jumpActive: !settings.jumpActive })}
-          />
-        </div>
-        
-        <div>
-          <h4>Random Start Position</h4>
-          <input type='checkbox'
-            id="jump"
-            name="jump"
-            checked={settings.randomStartPos}
-            onChange={() => setSettings({ ...settings, randomStartPos: !settings.randomStartPos })}
-          />
-        </div>
-        
-        <div>
-          <h4>Random Blocks</h4>
-          <input
-            type="number"
-            value={settings.randomBlocks}
-            onChange={(e) => setSettings({ ...settings, randomBlocks: parseInt(e.target.value, 10) })}
-          />
-        </div>
+                  <div className='inline-flex'>
+                    <button className='btn-plain' onClick={leaveRoom}>{isAdmin ? 'Delete Room' : 'Back'}</button>
+                    {isAdmin && <button onClick={handleStartGame}>Start Game</button>}
+                  </div>
 
-        <div>
-          <h4>Random Player Blocks</h4>
-          <input
-            type="number"
-            value={settings.randomPlayerBlocks}
-            onChange={(e) => setSettings({ ...settings, randomPlayerBlocks: parseInt(e.target.value, 10) })}
-          />
-        </div>
-      </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
-      {theplayer.id === room.admin.id && <button onClick={saveSettings}>Save Settings</button>}
-
-      <div>
-        <h2>Players in the Room</h2>
-        <ul>
-          {room.players.map((player) => (
-            <li key={uuidv4()}>
-              {player.name} {player.id === room.admin.id ? '(Admin)' : ''}
-            </li>
-          ))}
-        </ul>
-
-        <button onClick={leaveRoom}>Back</button>
-
-        {room.admin.id === theplayer.id && <button onClick={handleStartGame}>Start Game</button>}
-
-      </div>
+      {roomSettings && (
+        <AnimatePresence>
+          {!isLeavingRoom && (
+            <motion.div
+              className='area middle'
+              initial={{ x: 1300 }}
+              animate={{
+                x: 0, transition: {
+                  delay: .4,
+                  duration: .3,
+                  type: "spring",
+                  stiffness: 200,
+                  damping: 20,
+                }
+              }}
+              exit={{ x: 1300 }}>
+              <Settings roomID={roomID} roomSettings={roomSettings} isAdmin={isAdmin} newAlert={newAlert} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </>
   );
 };
